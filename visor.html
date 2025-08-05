@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <title>Texto del portapapeles</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      padding: 2em;
+    }
+    pre {
+      background-color: #f4f4f4;
+      padding: 1em;
+      border-radius: 5px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+  </style>
+</head>
+<body>
+  <h2>Texto pegado:</h2>
+  <pre id="output">Cargando...</pre>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const text = params.get("text");
+    document.getElementById("output").textContent = decodeURIComponent(text || '[No hay texto en la URL]');
+  </script>
+</body>
+</html>

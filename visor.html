@@ -74,12 +74,15 @@
 
     localStorage.setItem(STORAGE_KEY, combinado);
     document.getElementById("output").textContent = combinado || "[No hay texto guardado]";
-    document.getElementById("charCount").textContent = "📏 Total: " + combinado.length + " caracteres";
+
+    // Aquí está el único cambio: contar sin espacios
+    const sinEspacios = combinado.replace(/\s/g, "");
+    document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
 
     document.getElementById("clearBtn").addEventListener("click", () => {
       localStorage.removeItem(STORAGE_KEY);
       document.getElementById("output").textContent = "[Texto eliminado]";
-      document.getElementById("charCount").textContent = "📏 Total: 0 caracteres";
+      document.getElementById("charCount").textContent = "📏 Total: 0 caracteres (sin espacios)";
     });
   </script>
 </body>

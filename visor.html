@@ -3,283 +3,95 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Texto parseado y enlazado a JPDB</title>
+<title>Visor JPDB palabra por palabra</title>
 <style>
   body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    margin: 0;
+    background: #121212;
+    color: #fff;
+    font-family: Arial, sans-serif;
     padding: 1em;
-    background-color: #121212;
-    color: #f1f1f1;
-    line-height: 1.6;
-  }
-  h2 {
-    font-size: 1.3em;
-    text-align: center;
-    margin-bottom: 1em;
   }
   #textContainer {
-    background-color: #1e1e1e;
-    padding: 1em;
-    border-radius: 8px;
-    font-size: var(--fontSize, 16px);
+    font-size: 16px;
     user-select: text;
+  }
+  .word-link {
+    color: #fff;
+    text-decoration: none;
+    cursor: pointer;
+    margin-right: 3px;
+  }
+  .word-link:hover {
+    text-decoration: underline;
   }
   .line {
     margin-bottom: 1em;
   }
-  .word-link {
-    color: #f1f1f1; /* blanco, sin subrayado */
-    text-decoration: none;
-    cursor: pointer;
-    position: relative;
-  }
-  .word-link:hover,
-  .word-link:focus {
-    text-decoration: underline;
-  }
-  .deleteBtn {
-    margin-left: 0.5em;
-    background-color: #ff4444;
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    padding: 0.2em 0.5em;
-  }
-  .deleteBtn:hover {
-    background-color: #cc0000;
-  }
-  #charCount {
-    margin-top: 1em;
-    font-size: 0.9em;
-    text-align: center;
-    color: #cccccc;
-  }
-  .controls {
-    text-align: center;
-    margin-top: 1em;
-  }
-  .controls button {
-    margin: 0 0.3em;
-    padding: 0.5em 0.8em;
-    font-size: 1em;
-    border: none;
-    border-radius: 6px;
-    background-color: #333;
-    color: white;
-    cursor: pointer;
-  }
-  .controls button:hover {
-    background-color: #555;
-  }
-  #clearBtn {
-    display: block;
-    margin: 2em auto 0 auto;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    border: none;
-    border-radius: 6px;
-    background-color: #ff4444;
-    color: white;
-    cursor: pointer;
-  }
-  #clearBtn:hover {
-    background-color: #cc0000;
-  }
-  /* Tooltip */
-  .tooltip {
-    position: absolute;
-    bottom: 100%;
-    left: 50%;
-    transform: translateX(-50%);
-    background: #222;
-    color: #eee;
-    padding: 8px 12px;
-    border-radius: 6px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.8);
-    white-space: normal;
-    width: 250px;
-    font-size: 0.9em;
-    z-index: 1000;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease-in-out;
-  }
-  .tooltip.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
 </style>
 </head>
 <body>
-  <h2>Texto acumulado (parseado palabra a palabra):</h2>
-  <div id="textContainer"></div>
-  <div id="charCount"></div>
 
-  <div class="controls">
-    <button id="increaseFont">➕ Aumentar</button>
-    <button id="decreaseFont">➖ Reducir</button>
-  </div>
-
-  <button id="clearBtn">🗑️ Borrar todo</button>
+<h2>Texto parseado y enlazado palabra por palabra a JPDB</h2>
+<div id="textContainer"></div>
 
 <script>
 const STORAGE_KEY = "textoGuardado";
-const FONT_KEY = "fontSize";
 
-let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-
-document.getElementById("increaseFont").onclick = () => {
-  fontSize += 2;
-  localStorage.setItem(FONT_KEY, fontSize);
-  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-};
-
-document.getElementById("decreaseFont").onclick = () => {
-  fontSize = Math.max(8, fontSize - 2);
-  localStorage.setItem(FONT_KEY, fontSize);
-  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-};
-
-document.getElementById("clearBtn").onclick = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  renderTexto();
-};
-
-async function parsearJPDB(texto) {
-  const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(texto)}`;
+async function parseJPDB(sentence) {
   try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`Error en API: ${res.status}`);
-    const data = await res.json();
-    // data.result es un array de objetos { word, reading, meaning, ... }
-    return data.result;
+    const response = await fetch(`https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(sentence)}`);
+    if (!response.ok) throw new Error('Error al llamar a la API JPDB');
+    const data = await response.json();
+    return data.result; // Array de palabras segmentadas
   } catch (e) {
-    console.error("Error fetch JPDB parse:", e);
+    console.error(e);
     return null;
   }
 }
 
-// Función para crear tooltip
-function crearTooltip(texto) {
-  const tooltip = document.createElement("div");
-  tooltip.className = "tooltip";
-  tooltip.textContent = texto;
-  document.body.appendChild(tooltip);
-  return tooltip;
-}
-
-function posicionarTooltip(tooltip, elemento) {
-  const rect = elemento.getBoundingClientRect();
-  const tooltipRect = tooltip.getBoundingClientRect();
-  const top = window.scrollY + rect.top - tooltipRect.height - 8;
-  const left = window.scrollX + rect.left + rect.width / 2 - tooltipRect.width / 2;
-
-  tooltip.style.top = `${top}px`;
-  tooltip.style.left = `${left}px`;
-}
-
-function mostrarTooltip(tooltip) {
-  tooltip.classList.add("visible");
-}
-
-function ocultarTooltip(tooltip) {
-  tooltip.classList.remove("visible");
-  setTimeout(() => {
-    if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
-  }, 300);
-}
-
 async function renderTexto() {
-  const contenedor = document.getElementById("textContainer");
-  contenedor.innerHTML = "";
+  const container = document.getElementById('textContainer');
+  container.innerHTML = '';
 
-  let textoGuardado = localStorage.getItem(STORAGE_KEY) || "";
-  if (!textoGuardado.trim()) {
-    contenedor.textContent = "(No hay texto guardado)";
-    document.getElementById("charCount").textContent = "";
+  let texto = localStorage.getItem(STORAGE_KEY) || '';
+
+  if (!texto.trim()) {
+    container.textContent = 'No hay texto guardado';
     return;
   }
 
-  const lineas = textoGuardado.split("\n").filter(l => l.trim() !== "");
+  const lineas = texto.split('\n').filter(line => line.trim() !== '');
 
-  let totalCaracteresSinEspacios = 0;
+  for (let linea of lineas) {
+    const divLinea = document.createElement('div');
+    divLinea.className = 'line';
 
-  for (let i = 0; i < lineas.length; i++) {
-    const lineaTexto = lineas[i];
-    const lineaDiv = document.createElement("div");
-    lineaDiv.className = "line";
-
-    // Parsear línea con JPDB API
-    const palabras = await parsearJPDB(lineaTexto);
+    const palabras = await parseJPDB(linea);
 
     if (!palabras) {
-      // Si falla parsear, mostrar línea normal sin enlaces
-      lineaDiv.textContent = lineaTexto;
-      contenedor.appendChild(lineaDiv);
+      divLinea.textContent = linea; // Mostrar línea sin parsear si falla API
+      container.appendChild(divLinea);
       continue;
     }
 
-    // Contenedor para palabras con enlaces
-    palabras.forEach(({ word, reading, meaning }) => {
-      totalCaracteresSinEspacios += word.replace(/\s/g, "").length;
-
-      const a = document.createElement("a");
+    for (let palabraObj of palabras) {
+      const word = palabraObj.word;
+      const a = document.createElement('a');
+      a.className = 'word-link';
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      a.className = "word-link";
+      a.target = '_blank';
+      a.rel = 'noopener noreferrer';
       a.textContent = word;
+      divLinea.appendChild(a);
+    }
 
-      // Tooltip: mostrar significado y lectura
-      let tooltip;
-      a.addEventListener("mouseenter", () => {
-        tooltip = crearTooltip(`${word}\n${reading ? "Lectura: " + reading + "\n" : ""}${meaning ? meaning : ""}`);
-        posicionarTooltip(tooltip, a);
-        mostrarTooltip(tooltip);
-      });
-      a.addEventListener("mouseleave", () => {
-        if (tooltip) ocultarTooltip(tooltip);
-      });
-
-      // Soporte táctil (tap) para tooltip
-      a.addEventListener("touchstart", (e) => {
-        e.preventDefault();
-        if (tooltip) {
-          ocultarTooltip(tooltip);
-          tooltip = null;
-        } else {
-          tooltip = crearTooltip(`${word}\n${reading ? "Lectura: " + reading + "\n" : ""}${meaning ? meaning : ""}`);
-          posicionarTooltip(tooltip, a);
-          mostrarTooltip(tooltip);
-        }
-      });
-
-      lineaDiv.appendChild(a);
-      lineaDiv.appendChild(document.createTextNode(" "));
-    });
-
-    // Botón borrar línea
-    const btnEliminar = document.createElement("button");
-    btnEliminar.className = "deleteBtn";
-    btnEliminar.textContent = "🗑️";
-    btnEliminar.title = "Eliminar línea";
-    btnEliminar.onclick = () => {
-      lineas.splice(i, 1);
-      localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-      renderTexto();
-    };
-    lineaDiv.appendChild(btnEliminar);
-
-    contenedor.appendChild(lineaDiv);
+    container.appendChild(divLinea);
   }
-
-  document.getElementById("charCount").textContent = `📏 Total: ${totalCaracteresSinEspacios} caracteres (sin espacios)`;
 }
 
+// Cargar y mostrar texto al abrir página
 renderTexto();
 </script>
+
 </body>
 </html>

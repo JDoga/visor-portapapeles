@@ -1,251 +1,175 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JPDB Móvil Compatible</title>
-<style>
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-    margin: 0; padding: 1em;
-    background-color: #121212;
-    color: #f1f1f1;
-    line-height: 1.6;
-  }
-
-  #textContainer {
-    background-color: #1e1e1e;
-    padding: 1em;
-    border-radius: 8px;
-    font-size: var(--fontSize, 16px);
-    user-select: text;
-    word-break: break-word;
-  }
-
-  .line {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.5em;
-  }
-
-  .text-content {
-    flex-grow: 1;
-  }
-
-  .deleteBtn {
-    margin-left: 0.5em;
-    background-color: #ff4444;
-    border: none;
-    border-radius: 4px;
-    color: white;
-    cursor: pointer;
-    padding: 0.2em 0.5em;
-    flex-shrink: 0;
-  }
-
-  .deleteBtn:hover {
-    background-color: #cc0000;
-  }
-
-  #charCount {
-    margin-top: 1em;
-    font-size: 0.9em;
-    text-align: center;
-    color: #ccc;
-  }
-
-  .controls {
-    text-align: center;
-    margin-top: 1em;
-  }
-
-  .controls button {
-    margin: 0 0.3em;
-    padding: 0.5em 0.8em;
-    font-size: 1em;
-    border: none;
-    border-radius: 6px;
-    background-color: #333;
-    color: white;
-    cursor: pointer;
-  }
-
-  .controls button:hover {
-    background-color: #555;
-  }
-
-  #clearBtn {
-    display: block;
-    margin: 2em auto 0 auto;
-    padding: 0.6em 1.2em;
-    font-size: 1em;
-    border: none;
-    border-radius: 6px;
-    background-color: #ff4444;
-    color: white;
-    cursor: pointer;
-  }
-
-  #clearBtn:hover {
-    background-color: #cc0000;
-  }
-
-  /* Estilo para enlaces JPDB visibles en móvil */
-  a.jpdb-link {
-    color: #2196f3;  /* azul visible */
-    text-decoration: underline; /* subrayado */
-    cursor: pointer;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Texto desde portapapeles con enlaces JPDB</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
+      background-color: #121212;
+      color: #f1f1f1;
+      line-height: 1.6;
+    }
+    h2 {
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 1em;
+    }
+    #textContainer {
+      background-color: #1e1e1e;
+      padding: 1em;
+      border-radius: 8px;
+      font-size: var(--fontSize, 16px);
+      white-space: pre-wrap;
+      word-wrap: break-word;
+    }
+    .line {
+      margin-bottom: 0.8em;
+    }
+    a.jpdb-link {
+      color: #3399ff;
+      text-decoration: underline;
+      cursor: pointer;
+    }
+    a.jpdb-link:hover {
+      color: #66bbff;
+    }
+    #charCount {
+      margin-top: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      color: #cccccc;
+    }
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+    .controls button:hover {
+      background-color: #555;
+    }
+    #clearBtn {
+      display: block;
+      margin: 2em auto 0 auto;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #ff4444;
+      color: white;
+      cursor: pointer;
+    }
+    #clearBtn:hover {
+      background-color: #cc0000;
+    }
+  </style>
 </head>
 <body>
+  <h2>Texto acumulado con enlaces a JPDB</h2>
+  <div id="textContainer"></div>
+  <div id="charCount"></div>
 
-<h2>Texto acumulado:</h2>
-<div id="textContainer"></div>
-<div id="charCount"></div>
+  <div class="controls">
+    <button id="increaseFont">➕ Aumentar</button>
+    <button id="decreaseFont">➖ Reducir</button>
+  </div>
 
-<div class="controls">
-  <button id="increaseFont">➕ Aumentar</button>
-  <button id="decreaseFont">➖ Reducir</button>
-</div>
+  <button id="clearBtn">🗑️ Borrar todo</button>
 
-<button id="clearBtn">🗑️ Borrar todo</button>
+  <!-- TinySegmenter para segmentar palabras japonesas -->
+  <script src="https://cdn.jsdelivr.net/npm/tiny-segmenter@1.0.0/dist/tiny-segmenter.min.js"></script>
 
-<script>
-const STORAGE_KEY = "textoGuardado";
-const FONT_KEY = "fontSize";
-const params = new URLSearchParams(window.location.search);
-const nuevoTexto = params.get("text") || "";
-const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+  <script>
+    const STORAGE_KEY = "textoGuardado";
+    const FONT_KEY = "fontSize";
+    const params = new URLSearchParams(window.location.search);
+    const nuevoTexto = params.get("text") || "";
+    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-let anterior = localStorage.getItem(STORAGE_KEY) || "";
-if (decodificado) {
-  anterior += (anterior ? "\n" : "") + decodificado;
-  localStorage.setItem(STORAGE_KEY, anterior);
-}
-
-function crearEnlaceJPDB(word) {
-  const a = document.createElement("a");
-  a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  a.textContent = word;
-  a.className = "jpdb-link";
-  return a;
-}
-
-function simpleParseJapaneseWords(text) {
-  // Regex para grupos de caracteres japoneses (kanji, hiragana, katakana)
-  const regex = /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+)/gu;
-  let lastIndex = 0;
-  const nodes = [];
-
-  for (const match of text.matchAll(regex)) {
-    const index = match.index;
-
-    if (index > lastIndex) {
-      // Texto antes no japonés
-      nodes.push(document.createTextNode(text.slice(lastIndex, index)));
+    let anterior = localStorage.getItem(STORAGE_KEY) || "";
+    if (decodificado) {
+      anterior += (anterior ? "\n" : "") + decodificado;
+      localStorage.setItem(STORAGE_KEY, anterior);
     }
-    // Palabra japonesa
-    nodes.push(crearEnlaceJPDB(match[0]));
-    lastIndex = index + match[0].length;
-  }
 
-  // Texto final no japonés
-  if (lastIndex < text.length) {
-    nodes.push(document.createTextNode(text.slice(lastIndex)));
-  }
+    const segmenter = new TinySegmenter();
 
-  return nodes;
-}
+    function crearEnlaceJPDB(word) {
+      const a = document.createElement("a");
+      a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = word;
+      a.className = "jpdb-link";
+      return a;
+    }
 
-async function parseLineConJPDB(line) {
-  const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
-  try {
-    console.log("Intentando parsear con API JPDB:", line);
-    const res = await fetch(url);
-    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
-    const data = await res.json();
-    if (!data.tokens) throw new Error("No tokens en respuesta");
+    function segmentarYEnlazar(text) {
+      const tokens = segmenter.segment(text);
+      const fragment = document.createDocumentFragment();
 
-    // Construimos nodos con tokens parseados
-    return data.tokens.map(token => {
-      const text = token.surface_form;
-      if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text)) {
-        return crearEnlaceJPDB(text);
-      } else {
-        return document.createTextNode(text);
-      }
-    });
-  } catch (e) {
-    console.warn("Fallo parse JPDB, usando parse simple:", e);
-    return simpleParseJapaneseWords(line);
-  }
-}
+      tokens.forEach(token => {
+        // Si el token contiene japonés (Kanji, Hiragana, Katakana), creamos enlace
+        if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(token)) {
+          fragment.appendChild(crearEnlaceJPDB(token));
+        } else {
+          // Texto plano normal (espacios, puntuación, etc)
+          fragment.appendChild(document.createTextNode(token));
+        }
+      });
+      return fragment;
+    }
 
-async function renderTexto() {
-  const contenedor = document.getElementById("textContainer");
-  contenedor.innerHTML = "";
+    function renderTexto() {
+      const contenedor = document.getElementById("textContainer");
+      contenedor.innerHTML = "";
 
-  const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      lineas.forEach(linea => {
+        const div = document.createElement("div");
+        div.className = "line";
+        div.appendChild(segmentarYEnlazar(linea));
+        contenedor.appendChild(div);
+      });
 
-  for (let i = 0; i < lineas.length; i++) {
-    const linea = lineas[i];
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
 
-    const div = document.createElement("div");
-    div.className = "line";
-
-    const span = document.createElement("span");
-    span.className = "text-content";
-
-    const linkedParts = await parseLineConJPDB(linea);
-    linkedParts.forEach(part => span.appendChild(part));
-
-    const btn = document.createElement("button");
-    btn.textContent = "🗑️";
-    btn.className = "deleteBtn";
-    btn.onclick = () => {
-      lineas.splice(i, 1);
-      localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
       renderTexto();
     };
 
-    div.appendChild(span);
-    div.appendChild(btn);
-    contenedor.appendChild(div);
-  }
+    // Fuente
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
 
-  const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-  document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-}
+    document.getElementById("increaseFont").onclick = () => {
+      fontSize += 2;
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
 
-document.getElementById("clearBtn").onclick = () => {
-  localStorage.removeItem(STORAGE_KEY);
-  renderTexto();
-};
+    document.getElementById("decreaseFont").onclick = () => {
+      fontSize = Math.max(8, fontSize - 2);
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
 
-let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-
-document.getElementById("increaseFont").onclick = () => {
-  fontSize += 2;
-  localStorage.setItem(FONT_KEY, fontSize);
-  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-};
-
-document.getElementById("decreaseFont").onclick = () => {
-  fontSize = Math.max(8, fontSize - 2);
-  localStorage.setItem(FONT_KEY, fontSize);
-  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-};
-
-// Ejecutamos render texto asegurando el await
-(async () => {
-  await renderTexto();
-})();
-</script>
-
+    renderTexto();
+  </script>
 </body>
 </html>

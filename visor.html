@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>JPDB Parser prueba básica</title>
+<title>JPDB Móvil Compatible</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -19,6 +19,7 @@
     border-radius: 8px;
     font-size: var(--fontSize, 16px);
     user-select: text;
+    word-break: break-word;
   }
 
   .line {
@@ -26,7 +27,6 @@
     justify-content: space-between;
     align-items: center;
     margin-bottom: 0.5em;
-    word-break: break-word;
   }
 
   .text-content {
@@ -91,9 +91,9 @@
     background-color: #cc0000;
   }
 
-  /* Links con color azul y subrayado para prueba */
+  /* Estilo para enlaces JPDB visibles en móvil */
   a.jpdb-link {
-    color: #2196f3;  /* azul brillante */
+    color: #2196f3;  /* azul visible */
     text-decoration: underline; /* subrayado */
     cursor: pointer;
   }
@@ -125,7 +125,6 @@ if (decodificado) {
   localStorage.setItem(STORAGE_KEY, anterior);
 }
 
-// Esta función crea un enlace JPDB simple para cada palabra
 function crearEnlaceJPDB(word) {
   const a = document.createElement("a");
   a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
@@ -136,26 +135,53 @@ function crearEnlaceJPDB(word) {
   return a;
 }
 
-// Usamos el parse oficial de JPDB para separar tokens
+function simpleParseJapaneseWords(text) {
+  // Regex para grupos de caracteres japoneses (kanji, hiragana, katakana)
+  const regex = /([\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]+)/gu;
+  let lastIndex = 0;
+  const nodes = [];
+
+  for (const match of text.matchAll(regex)) {
+    const index = match.index;
+
+    if (index > lastIndex) {
+      // Texto antes no japonés
+      nodes.push(document.createTextNode(text.slice(lastIndex, index)));
+    }
+    // Palabra japonesa
+    nodes.push(crearEnlaceJPDB(match[0]));
+    lastIndex = index + match[0].length;
+  }
+
+  // Texto final no japonés
+  if (lastIndex < text.length) {
+    nodes.push(document.createTextNode(text.slice(lastIndex)));
+  }
+
+  return nodes;
+}
+
 async function parseLineConJPDB(line) {
   const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
   try {
+    console.log("Intentando parsear con API JPDB:", line);
     const res = await fetch(url);
-    if (!res.ok) throw new Error("Error en parse JPDB");
+    if (!res.ok) throw new Error(`HTTP status ${res.status}`);
     const data = await res.json();
-    if (!data.tokens) return [document.createTextNode(line)];
+    if (!data.tokens) throw new Error("No tokens en respuesta");
 
+    // Construimos nodos con tokens parseados
     return data.tokens.map(token => {
       const text = token.surface_form;
-      // Enlace si es japonés
       if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text)) {
         return crearEnlaceJPDB(text);
       } else {
         return document.createTextNode(text);
       }
     });
-  } catch {
-    return [document.createTextNode(line)];
+  } catch (e) {
+    console.warn("Fallo parse JPDB, usando parse simple:", e);
+    return simpleParseJapaneseWords(line);
   }
 }
 
@@ -215,7 +241,10 @@ document.getElementById("decreaseFont").onclick = () => {
   document.documentElement.style.setProperty("--fontSize", fontSize + "px");
 };
 
-renderTexto();
+// Ejecutamos render texto asegurando el await
+(async () => {
+  await renderTexto();
+})();
 </script>
 
 </body>

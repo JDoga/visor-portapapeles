@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Texto con parseo JPDB oficial y tooltip</title>
+<title>JPDB Parser prueba básica</title>
 <style>
   body {
     font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -91,45 +91,11 @@
     background-color: #cc0000;
   }
 
+  /* Links con color azul y subrayado para prueba */
   a.jpdb-link {
-    color: inherit;  /* color blanco original */
-    text-decoration: none; /* sin subrayado */
+    color: #2196f3;  /* azul brillante */
+    text-decoration: underline; /* subrayado */
     cursor: pointer;
-  }
-
-  a.jpdb-link:hover {
-    text-decoration: underline; /* opcional, solo on hover */
-  }
-
-  .tooltip {
-    position: absolute;
-    background-color: #222;
-    color: #eee;
-    padding: 0.6em 1em;
-    border-radius: 8px;
-    font-size: 0.9em;
-    max-width: 300px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.8);
-    z-index: 1000;
-    pointer-events: none;
-    opacity: 0;
-    transition: opacity 0.2s ease;
-  }
-
-  .tooltip.visible {
-    opacity: 1;
-    pointer-events: auto;
-  }
-
-  .tooltip .word {
-    font-weight: bold;
-    margin-bottom: 0.3em;
-    display: block;
-  }
-
-  .tooltip .meanings {
-    font-style: italic;
-    margin-bottom: 0.3em;
   }
 </style>
 </head>
@@ -146,8 +112,6 @@
 
 <button id="clearBtn">🗑️ Borrar todo</button>
 
-<div id="tooltip" class="tooltip"></div>
-
 <script>
 const STORAGE_KEY = "textoGuardado";
 const FONT_KEY = "fontSize";
@@ -161,61 +125,7 @@ if (decodificado) {
   localStorage.setItem(STORAGE_KEY, anterior);
 }
 
-const tooltip = document.getElementById("tooltip");
-
-function positionTooltip(event) {
-  const padding = 10;
-  let x = event.pageX + padding;
-  let y = event.pageY + padding;
-  const tooltipRect = tooltip.getBoundingClientRect();
-  const viewportWidth = window.innerWidth;
-  const viewportHeight = window.innerHeight;
-
-  if (x + tooltipRect.width > viewportWidth) {
-    x = event.pageX - tooltipRect.width - padding;
-  }
-  if (y + tooltipRect.height > viewportHeight) {
-    y = event.pageY - tooltipRect.height - padding;
-  }
-
-  tooltip.style.left = x + "px";
-  tooltip.style.top = y + "px";
-}
-
-async function fetchJPDBInfo(word) {
-  const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(word)}`;
-  try {
-    const res = await fetch(url);
-    if (!res.ok) throw new Error("API JPDB error");
-    const data = await res.json();
-    const token = data.tokens?.find(t => t.surface_form === word);
-    if (!token) return null;
-    const reading = token.reading || "";
-    const meanings = token.meanings?.join(", ") || "";
-    return { word, reading, meanings };
-  } catch {
-    return null;
-  }
-}
-
-function showTooltip(info, event) {
-  if (!info) {
-    tooltip.classList.remove("visible");
-    return;
-  }
-  tooltip.innerHTML = `
-    <span class="word">${info.word} ${info.reading ? `(${info.reading})` : ""}</span>
-    <span class="meanings">${info.meanings}</span>
-  `;
-  positionTooltip(event);
-  tooltip.classList.add("visible");
-}
-
-function hideTooltip() {
-  tooltip.classList.remove("visible");
-}
-
-// Esta función crea un enlace con tooltip para una palabra ya parseada
+// Esta función crea un enlace JPDB simple para cada palabra
 function crearEnlaceJPDB(word) {
   const a = document.createElement("a");
   a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
@@ -223,50 +133,21 @@ function crearEnlaceJPDB(word) {
   a.rel = "noopener noreferrer";
   a.textContent = word;
   a.className = "jpdb-link";
-
-  a.addEventListener("mouseenter", async (e) => {
-    const info = await fetchJPDBInfo(word);
-    showTooltip(info, e);
-  });
-
-  a.addEventListener("mousemove", positionTooltip);
-
-  a.addEventListener("mouseleave", () => {
-    hideTooltip();
-  });
-
-  a.addEventListener("touchstart", async (e) => {
-    e.preventDefault();
-    const info = await fetchJPDBInfo(word);
-    if (tooltip.classList.contains("visible")) {
-      hideTooltip();
-    } else {
-      showTooltip(info, e.touches[0]);
-    }
-  });
-
-  document.addEventListener("touchstart", (e) => {
-    if (!tooltip.contains(e.target) && !a.contains(e.target)) {
-      hideTooltip();
-    }
-  });
-
   return a;
 }
 
-// Ahora parseamos cada línea usando la API oficial JPDB y luego generamos los enlaces
+// Usamos el parse oficial de JPDB para separar tokens
 async function parseLineConJPDB(line) {
   const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
   try {
     const res = await fetch(url);
     if (!res.ok) throw new Error("Error en parse JPDB");
     const data = await res.json();
-    if (!data.tokens) return [document.createTextNode(line)]; // fallback
+    if (!data.tokens) return [document.createTextNode(line)];
 
-    // Por cada token creamos enlace si es palabra japonesa, si no texto normal
     return data.tokens.map(token => {
       const text = token.surface_form;
-      // Consideramos que cualquier token con kanji o kana es palabra japonesa
+      // Enlace si es japonés
       if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(text)) {
         return crearEnlaceJPDB(text);
       } else {
@@ -284,7 +165,6 @@ async function renderTexto() {
 
   const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
 
-  // Render asíncrono línea por línea para usar el parser oficial
   for (let i = 0; i < lineas.length; i++) {
     const linea = lineas[i];
 
@@ -303,7 +183,6 @@ async function renderTexto() {
     btn.onclick = () => {
       lineas.splice(i, 1);
       localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-      hideTooltip();
       renderTexto();
     };
 
@@ -318,7 +197,6 @@ async function renderTexto() {
 
 document.getElementById("clearBtn").onclick = () => {
   localStorage.removeItem(STORAGE_KEY);
-  hideTooltip();
   renderTexto();
 };
 

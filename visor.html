@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Texto desde portapapeles + JPDB links con kuromoji</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texto desde portapapeles + JPDB links simples</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -26,6 +26,7 @@
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
       user-select: text;
+      white-space: pre-wrap;
       word-break: break-word;
     }
 
@@ -34,21 +35,11 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5em;
-      flex-wrap: wrap;
+      word-break: break-word;
     }
 
     .line span.text-content {
       flex-grow: 1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.2em;
-    }
-
-    .word-link {
-      color: #7ecbff;
-      text-decoration: underline;
-      cursor: pointer;
-      user-select: text;
     }
 
     .deleteBtn {
@@ -108,6 +99,12 @@
     #clearBtn:hover {
       background-color: #cc0000;
     }
+
+    a.jpdb-link {
+      color: #7ecbff;
+      text-decoration: underline;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
@@ -122,9 +119,6 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
-  <!-- Kuromoji.js y diccionario desde CDN -->
-  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dist/kuromoji.min.js"></script>
-
   <script>
     const STORAGE_KEY = "textoGuardado";
     const FONT_KEY = "fontSize";
@@ -138,24 +132,51 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    // Función para construir enlace JPDB
+    // Regex para detectar bloques japoneses (kanji, hiragana, katakana)
+    const japaneseRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
+
     function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = word;
-      a.className = "word-link";
+      a.className = "jpdb-link";
       return a;
     }
 
-    // Renderizado con kuromoji para segmentar
-    function renderTexto(tokenizer) {
+    function parseLineToLinks(text) {
+      const parts = [];
+      let lastIndex = 0;
+
+      for (const match of text.matchAll(japaneseRegex)) {
+        const start = match.index;
+        const end = start + match[0].length;
+
+        // Texto antes de palabra japonesa
+        if (start > lastIndex) {
+          parts.push(document.createTextNode(text.slice(lastIndex, start)));
+        }
+
+        // Enlace palabra japonesa
+        parts.push(crearEnlaceJPDB(match[0]));
+
+        lastIndex = end;
+      }
+
+      // Texto después de última palabra japonesa
+      if (lastIndex < text.length) {
+        parts.push(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      return parts;
+    }
+
+    function renderTexto() {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
 
       const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-
       lineas.forEach((linea, index) => {
         const div = document.createElement("div");
         div.className = "line";
@@ -163,15 +184,8 @@
         const span = document.createElement("span");
         span.className = "text-content";
 
-        // Tokenizamos la línea
-        const tokens = tokenizer.tokenize(linea);
-
-        tokens.forEach(token => {
-          // Enlace para cada palabra (surface_form)
-          span.appendChild(crearEnlaceJPDB(token.surface_form));
-          // Añadimos espacio pequeño entre palabras (opcional)
-          span.appendChild(document.createTextNode(" "));
-        });
+        const linkedParts = parseLineToLinks(linea);
+        linkedParts.forEach(part => span.appendChild(part));
 
         const btn = document.createElement("button");
         btn.textContent = "🗑️";
@@ -179,7 +193,7 @@
         btn.onclick = () => {
           lineas.splice(index, 1);
           localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto(tokenizer);
+          renderTexto();
         };
 
         div.appendChild(span);
@@ -187,10 +201,14 @@
         contenedor.appendChild(div);
       });
 
-      // Actualizar contador sin espacios
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
       document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
+
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto();
+    };
 
     // Fuente
     let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
@@ -208,22 +226,7 @@
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto(tokenizer);
-    };
-
-    // Construir tokenizer y renderizar al cargar
-    let tokenizer;
-    kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, builtTokenizer) => {
-      if (err) {
-        console.error("Error cargando kuromoji:", err);
-        document.getElementById("textContainer").textContent = "Error cargando el segmentador de japonés.";
-        return;
-      }
-      tokenizer = builtTokenizer;
-      renderTexto(tokenizer);
-    });
+    renderTexto();
   </script>
 </body>
 </html>

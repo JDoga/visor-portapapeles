@@ -1,97 +1,349 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Visor JPDB palabra por palabra</title>
-<style>
-  body {
-    background: #121212;
-    color: #fff;
-    font-family: Arial, sans-serif;
-    padding: 1em;
-  }
-  #textContainer {
-    font-size: 16px;
-    user-select: text;
-  }
-  .word-link {
-    color: #fff;
-    text-decoration: none;
-    cursor: pointer;
-    margin-right: 3px;
-  }
-  .word-link:hover {
-    text-decoration: underline;
-  }
-  .line {
-    margin-bottom: 1em;
-  }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texto desde portapapeles + JPDB links y tooltip</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
+      background-color: #121212;
+      color: #f1f1f1;
+      line-height: 1.6;
+    }
+
+    h2 {
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 1em;
+    }
+
+    #textContainer {
+      background-color: #1e1e1e;
+      padding: 1em;
+      border-radius: 8px;
+      font-size: var(--fontSize, 16px);
+      user-select: text;
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5em;
+      word-break: break-word;
+    }
+
+    .line span.text-content {
+      flex-grow: 1;
+    }
+
+    .deleteBtn {
+      margin-left: 0.5em;
+      background-color: #ff4444;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 0.2em 0.5em;
+      flex-shrink: 0;
+    }
+
+    .deleteBtn:hover {
+      background-color: #cc0000;
+    }
+
+    #charCount {
+      margin-top: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      color: #cccccc;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background-color: #555;
+    }
+
+    #clearBtn {
+      display: block;
+      margin: 2em auto 0 auto;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #ff4444;
+      color: white;
+      cursor: pointer;
+    }
+
+    #clearBtn:hover {
+      background-color: #cc0000;
+    }
+
+    /* Tooltip styles */
+    .tooltip {
+      position: absolute;
+      background-color: #222;
+      color: #eee;
+      padding: 0.6em 1em;
+      border-radius: 8px;
+      font-size: 0.9em;
+      max-width: 300px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      z-index: 1000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .tooltip.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .tooltip .word {
+      font-weight: bold;
+      margin-bottom: 0.3em;
+      display: block;
+    }
+
+    .tooltip .meanings {
+      font-style: italic;
+      margin-bottom: 0.3em;
+    }
+
+    .tooltip .context {
+      font-size: 0.8em;
+      color: #aaa;
+    }
+  </style>
 </head>
 <body>
+  <h2>Texto acumulado:</h2>
+  <div id="textContainer"></div>
+  <div id="charCount"></div>
 
-<h2>Texto parseado y enlazado palabra por palabra a JPDB</h2>
-<div id="textContainer"></div>
+  <div class="controls">
+    <button id="increaseFont">➕ Aumentar</button>
+    <button id="decreaseFont">➖ Reducir</button>
+  </div>
 
-<script>
-async function parseJPDB(sentence) {
-  try {
-    const response = await fetch(`https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(sentence)}`);
-    if (!response.ok) throw new Error('Error al llamar a la API JPDB');
-    const data = await response.json();
-    return data.result; // Array de palabras segmentadas
-  } catch (e) {
-    console.error(e);
-    return null;
-  }
-}
+  <button id="clearBtn">🗑️ Borrar todo</button>
 
-async function renderTexto(texto) {
-  const container = document.getElementById('textContainer');
-  container.innerHTML = '';
+  <div id="tooltip" class="tooltip"></div>
 
-  if (!texto.trim()) {
-    container.textContent = 'No hay texto recibido';
-    return;
-  }
+  <script>
+    const STORAGE_KEY = "textoGuardado";
+    const FONT_KEY = "fontSize";
+    const params = new URLSearchParams(window.location.search);
+    const nuevoTexto = params.get("text") || "";
+    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-  const lineas = texto.split('\n').filter(line => line.trim() !== '');
-
-  for (let linea of lineas) {
-    const divLinea = document.createElement('div');
-    divLinea.className = 'line';
-
-    const palabras = await parseJPDB(linea);
-
-    if (!palabras) {
-      divLinea.textContent = linea; // Mostrar línea sin parsear si falla API
-      container.appendChild(divLinea);
-      continue;
+    let anterior = localStorage.getItem(STORAGE_KEY) || "";
+    if (decodificado) {
+      anterior += (anterior ? "\n" : "") + decodificado;
+      localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    for (let palabraObj of palabras) {
-      const word = palabraObj.word;
-      const a = document.createElement('a');
-      a.className = 'word-link';
+    const tooltip = document.getElementById("tooltip");
+    let tooltipTimeout;
+
+    async function fetchJPDBInfo(word) {
+      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(word)}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error en API JPDB");
+        const data = await res.json();
+        const token = data.tokens?.find(t => t.surface_form === word);
+        if (!token) return null;
+        const reading = token.reading || "";
+        const meanings = token.meanings?.join(", ") || "";
+        return { word, reading, meanings };
+      } catch {
+        return null;
+      }
+    }
+
+    function showTooltip(info, event) {
+      if (!info) {
+        tooltip.classList.remove("visible");
+        return;
+      }
+      tooltip.innerHTML = `
+        <span class="word">${info.word} ${info.reading ? `(${info.reading})` : ""}</span>
+        <span class="meanings">${info.meanings}</span>
+      `;
+      positionTooltip(event);
+      tooltip.classList.add("visible");
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove("visible");
+    }
+
+    function positionTooltip(event) {
+      const padding = 10;
+      let x = event.pageX + padding;
+      let y = event.pageY + padding;
+
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (x + tooltipRect.width > viewportWidth) {
+        x = event.pageX - tooltipRect.width - padding;
+      }
+      if (y + tooltipRect.height > viewportHeight) {
+        y = event.pageY - tooltipRect.height - padding;
+      }
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    }
+
+    function crearEnlaceJPDB(word) {
+      const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
-      a.target = '_blank';
-      a.rel = 'noopener noreferrer';
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
       a.textContent = word;
-      divLinea.appendChild(a);
+      a.style.color = "#7ecbff";
+      a.style.textDecoration = "underline";
+      a.style.cursor = "pointer";
+
+      let fetchTimeout;
+
+      a.addEventListener("mouseenter", async (e) => {
+        clearTimeout(fetchTimeout);
+        const info = await fetchJPDBInfo(word);
+        showTooltip(info, e);
+      });
+
+      a.addEventListener("mousemove", positionTooltip);
+
+      a.addEventListener("mouseleave", () => {
+        fetchTimeout = setTimeout(() => {
+          hideTooltip();
+        }, 200);
+      });
+
+      // Para móviles, mostrar tooltip al tocar (y ocultar si se toca fuera)
+      a.addEventListener("touchstart", async (e) => {
+        e.preventDefault();
+        const info = await fetchJPDBInfo(word);
+        if (tooltip.classList.contains("visible")) {
+          hideTooltip();
+        } else {
+          showTooltip(info, e.touches[0]);
+        }
+      });
+
+      document.addEventListener("touchstart", (e) => {
+        if (!tooltip.contains(e.target) && !a.contains(e.target)) {
+          hideTooltip();
+        }
+      });
+
+      return a;
     }
 
-    container.appendChild(divLinea);
-  }
-}
+    async function parseLineToLinks(line) {
+      try {
+        const res = await fetch(`https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`);
+        if (!res.ok) throw new Error("Error API JPDB al segmentar línea");
+        const data = await res.json();
 
-// Leer texto del parámetro URL ?text=...
-const params = new URLSearchParams(window.location.search);
-const textoURL = decodeURIComponent(params.get('text') || '').replace(/\+/g, ' ');
+        const fragment = document.createDocumentFragment();
 
-// Ejecutar render con ese texto
-renderTexto(textoURL);
-</script>
+        for (const token of data.tokens) {
+          if (token.surface_form.trim() === "") {
+            fragment.appendChild(document.createTextNode(token.surface_form));
+          } else {
+            fragment.appendChild(crearEnlaceJPDB(token.surface_form));
+          }
+        }
 
+        return fragment;
+      } catch (e) {
+        return document.createTextNode(line);
+      }
+    }
+
+    async function renderTexto() {
+      const contenedor = document.getElementById("textContainer");
+      contenedor.innerHTML = "";
+
+      let lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+
+      for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i];
+        const div = document.createElement("div");
+        div.className = "line";
+
+        const span = document.createElement("span");
+        span.className = "text-content";
+
+        const parsedFragment = await parseLineToLinks(linea);
+        span.appendChild(parsedFragment);
+
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "deleteBtn";
+        btn.onclick = () => {
+          lineas.splice(i, 1);
+          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+          renderTexto();
+          hideTooltip();
+        };
+
+        div.appendChild(span);
+        div.appendChild(btn);
+        contenedor.appendChild(div);
+      }
+
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
+
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto();
+      hideTooltip();
+    };
+
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+    document.getElementById("increaseFont").onclick = () => {
+      fontSize += 2;
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    document.getElementById("decreaseFont").onclick = () => {
+      fontSize = Math.max(8, fontSize - 2);
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    renderTexto();
+  </script>
 </body>
 </html>

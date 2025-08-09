@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles + JPDB links y tooltip</title>
+  <title>Texto desde portapapeles + JPDB links y tooltip + Logs</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -26,6 +26,7 @@
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
       user-select: text;
+      position: relative;
     }
 
     .line {
@@ -134,6 +135,29 @@
       font-size: 0.8em;
       color: #aaa;
     }
+
+    /* Log message overlay */
+    #logMessage {
+      position: fixed;
+      bottom: 10px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(0,0,0,0.7);
+      color: #7ecbff;
+      padding: 8px 14px;
+      border-radius: 12px;
+      font-family: monospace;
+      font-size: 1em;
+      z-index: 1100;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+
+    #logMessage.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
   </style>
 </head>
 <body>
@@ -149,6 +173,7 @@
   <button id="clearBtn">🗑️ Borrar todo</button>
 
   <div id="tooltip" class="tooltip"></div>
+  <div id="logMessage"></div>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
@@ -163,8 +188,40 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
+    const japaneseRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
+
     const tooltip = document.getElementById("tooltip");
+    const logMessage = document.getElementById("logMessage");
     let tooltipTimeout;
+
+    function showLog(msg) {
+      logMessage.textContent = msg;
+      logMessage.classList.add("visible");
+      clearTimeout(logMessage._timeout);
+      logMessage._timeout = setTimeout(() => {
+        logMessage.classList.remove("visible");
+      }, 2000);
+    }
+
+    function positionTooltip(event) {
+      const padding = 10;
+      let x = event.pageX + padding;
+      let y = event.pageY + padding;
+
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      if (x + tooltipRect.width > viewportWidth) {
+        x = event.pageX - tooltipRect.width - padding;
+      }
+      if (y + tooltipRect.height > viewportHeight) {
+        y = event.pageY - tooltipRect.height - padding;
+      }
+
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    }
 
     async function fetchJPDBInfo(word) {
       const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(word)}`;
@@ -172,12 +229,14 @@
         const res = await fetch(url);
         if (!res.ok) throw new Error("Error en API JPDB");
         const data = await res.json();
+
         const token = data.tokens?.find(t => t.surface_form === word);
         if (!token) return null;
+
         const reading = token.reading || "";
         const meanings = token.meanings?.join(", ") || "";
         return { word, reading, meanings };
-      } catch {
+      } catch (e) {
         return null;
       }
     }
@@ -199,25 +258,6 @@
       tooltip.classList.remove("visible");
     }
 
-    function positionTooltip(event) {
-      const padding = 10;
-      let x = event.pageX + padding;
-      let y = event.pageY + padding;
-
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      if (x + tooltipRect.width > viewportWidth) {
-        x = event.pageX - tooltipRect.width - padding;
-      }
-      if (y + tooltipRect.height > viewportHeight) {
-        y = event.pageY - tooltipRect.height - padding;
-      }
-      tooltip.style.left = x + "px";
-      tooltip.style.top = y + "px";
-    }
-
     function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
@@ -231,6 +271,8 @@
       let fetchTimeout;
 
       a.addEventListener("mouseenter", async (e) => {
+        console.log("Hover en:", word);
+        showLog("Hover en: " + word);
         clearTimeout(fetchTimeout);
         const info = await fetchJPDBInfo(word);
         showTooltip(info, e);
@@ -244,9 +286,10 @@
         }, 200);
       });
 
-      // Para móviles, mostrar tooltip al tocar (y ocultar si se toca fuera)
       a.addEventListener("touchstart", async (e) => {
         e.preventDefault();
+        console.log("Touch en:", word);
+        showLog("Touch en: " + word);
         const info = await fetchJPDBInfo(word);
         if (tooltip.classList.contains("visible")) {
           hideTooltip();
@@ -264,86 +307,96 @@
       return a;
     }
 
-    async function parseLineToLinks(line) {
-      try {
-        const res = await fetch(`https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`);
-        if (!res.ok) throw new Error("Error API JPDB al segmentar línea");
-        const data = await res.json();
+    function parseLineToLinks(text) {
+      const parts = [];
+      let lastIndex = 0;
 
-        const fragment = document.createDocumentFragment();
+      for (const match of text.matchAll(japaneseRegex)) {
+        const start = match.index;
+        const end = start + match[0].length;
 
-        for (const token of data.tokens) {
-          if (token.surface_form.trim() === "") {
-            fragment.appendChild(document.createTextNode(token.surface_form));
-          } else {
-            fragment.appendChild(crearEnlaceJPDB(token.surface_form));
-          }
+        if (start > lastIndex) {
+          parts.push(document.createTextNode(text.slice(lastIndex, start)));
         }
 
-        return fragment;
-      } catch (e) {
-        return document.createTextNode(line);
+        parts.push(crearEnlaceJPDB(match[0]));
+
+        lastIndex = end;
       }
+
+      if (lastIndex < text.length) {
+        parts.push(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      return parts;
     }
 
-    async function renderTexto() {
+    function renderTexto() {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
 
-      let lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-
-      for (let i = 0; i < lineas.length; i++) {
-        const linea = lineas[i];
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      lineas.forEach((linea, index) => {
         const div = document.createElement("div");
         div.className = "line";
 
         const span = document.createElement("span");
         span.className = "text-content";
 
-        const parsedFragment = await parseLineToLinks(linea);
-        span.appendChild(parsedFragment);
-
-        const btn = document.createElement("button");
-        btn.textContent = "🗑️";
-        btn.className = "deleteBtn";
-        btn.onclick = () => {
-          lineas.splice(i, 1);
-          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto();
-          hideTooltip();
-        };
+        const linkedParts = parseLineToLinks(linea);
+        linkedParts.forEach(p => span.appendChild(p));
 
         div.appendChild(span);
-        div.appendChild(btn);
-        contenedor.appendChild(div);
-      }
 
-      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+        const btnBorrar = document.createElement("button");
+        btnBorrar.className = "deleteBtn";
+        btnBorrar.textContent = "🗑";
+        btnBorrar.title = "Eliminar línea";
+        btnBorrar.addEventListener("click", () => {
+          let lineasGuardadas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
+          lineasGuardadas.splice(index, 1);
+          localStorage.setItem(STORAGE_KEY, lineasGuardadas.join("\n"));
+          renderTexto();
+          showLog("Línea eliminada");
+        });
+
+        div.appendChild(btnBorrar);
+        contenedor.appendChild(div);
+      });
+
+      const count = (localStorage.getItem(STORAGE_KEY) || "").length;
+      document.getElementById("charCount").textContent = `Total caracteres: ${count}`;
     }
 
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
+    function ajustarFuente(incremento) {
+      let fontSize = parseInt(localStorage.getItem(FONT_KEY) || "16", 10);
+      fontSize = Math.min(32, Math.max(10, fontSize + incremento));
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    }
+
+    document.getElementById("increaseFont").addEventListener("click", () => {
+      ajustarFuente(2);
+    });
+
+    document.getElementById("decreaseFont").addEventListener("click", () => {
+      ajustarFuente(-2);
+    });
+
+    document.getElementById("clearBtn").addEventListener("click", () => {
+      if (confirm("¿Seguro que quieres borrar todo el texto almacenado?")) {
+        localStorage.removeItem(STORAGE_KEY);
+        renderTexto();
+        showLog("Texto borrado");
+      }
+    });
+
+    // Inicializar fuente guardada
+    (function init() {
+      const fontSize = localStorage.getItem(FONT_KEY) || "16";
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
       renderTexto();
-      hideTooltip();
-    };
-
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-
-    document.getElementById("increaseFont").onclick = () => {
-      fontSize += 2;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    document.getElementById("decreaseFont").onclick = () => {
-      fontSize = Math.max(8, fontSize - 2);
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    renderTexto();
+    })();
   </script>
 </body>
 </html>

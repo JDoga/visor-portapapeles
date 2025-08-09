@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Texto desde portapapeles + JPDB links y tooltip con segmentación kuromoji.js</title>
+  <title>Texto desde portapapeles + JPDB links con kuromoji</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -41,7 +41,14 @@
       flex-grow: 1;
       display: flex;
       flex-wrap: wrap;
-      gap: 4px;
+      gap: 0.2em;
+    }
+
+    .word-link {
+      color: #7ecbff;
+      text-decoration: underline;
+      cursor: pointer;
+      user-select: text;
     }
 
     .deleteBtn {
@@ -101,51 +108,6 @@
     #clearBtn:hover {
       background-color: #cc0000;
     }
-
-    /* Tooltip styles */
-    .tooltip {
-      position: absolute;
-      background-color: #222;
-      color: #eee;
-      padding: 0.6em 1em;
-      border-radius: 8px;
-      font-size: 0.9em;
-      max-width: 300px;
-      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
-      z-index: 1000;
-      pointer-events: none;
-      opacity: 0;
-      transition: opacity 0.2s ease;
-    }
-
-    .tooltip.visible {
-      opacity: 1;
-      pointer-events: auto;
-    }
-
-    .tooltip .word {
-      font-weight: bold;
-      margin-bottom: 0.3em;
-      display: block;
-    }
-
-    .tooltip .meanings {
-      font-style: italic;
-      margin-bottom: 0.3em;
-    }
-
-    .tooltip .context {
-      font-size: 0.8em;
-      color: #aaa;
-    }
-
-    a.jpdb-link {
-      color: #7ecbff;
-      text-decoration: underline;
-      cursor: pointer;
-      user-select: text;
-    }
-
   </style>
 </head>
 <body>
@@ -160,10 +122,8 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
-  <div id="tooltip" class="tooltip"></div>
-
-  <!-- Kuromoji.js -->
-  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dist/kuromoji.js"></script>
+  <!-- Kuromoji.js y diccionario desde CDN -->
+  <script src="https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dist/kuromoji.min.js"></script>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
@@ -178,178 +138,59 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    const tooltip = document.getElementById("tooltip");
-    let tooltipTimeout;
-
-    function positionTooltip(event) {
-      const padding = 10;
-      let x = event.pageX + padding;
-      let y = event.pageY + padding;
-
-      const tooltipRect = tooltip.getBoundingClientRect();
-      const viewportWidth = window.innerWidth;
-      const viewportHeight = window.innerHeight;
-
-      if (x + tooltipRect.width > viewportWidth) {
-        x = event.pageX - tooltipRect.width - padding;
-      }
-      if (y + tooltipRect.height > viewportHeight) {
-        y = event.pageY - tooltipRect.height - padding;
-      }
-
-      tooltip.style.left = x + "px";
-      tooltip.style.top = y + "px";
-    }
-
-    async function fetchJPDBInfo(word) {
-      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(word)}`;
-      try {
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Error en API JPDB");
-        const data = await res.json();
-        const token = data.tokens?.find(t => t.surface_form === word);
-        if (!token) return null;
-        const reading = token.reading || "";
-        const meanings = token.meanings?.join(", ") || "";
-        return { word, reading, meanings };
-      } catch (e) {
-        return null;
-      }
-    }
-
-    function showTooltip(info, event) {
-      if (!info) {
-        tooltip.classList.remove("visible");
-        return;
-      }
-      tooltip.innerHTML = `
-        <span class="word">${info.word} ${info.reading ? `(${info.reading})` : ""}</span>
-        <span class="meanings">${info.meanings}</span>
-      `;
-      positionTooltip(event);
-      tooltip.classList.add("visible");
-    }
-
-    function hideTooltip() {
-      tooltip.classList.remove("visible");
-    }
-
+    // Función para construir enlace JPDB
     function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = word;
-      a.className = "jpdb-link";
-
-      let fetchTimeout;
-
-      a.addEventListener("mouseenter", async (e) => {
-        clearTimeout(fetchTimeout);
-        const info = await fetchJPDBInfo(word);
-        showTooltip(info, e);
-      });
-
-      a.addEventListener("mousemove", positionTooltip);
-
-      a.addEventListener("mouseleave", () => {
-        fetchTimeout = setTimeout(() => {
-          hideTooltip();
-        }, 200);
-      });
-
-      a.addEventListener("touchstart", async (e) => {
-        e.preventDefault();
-        const info = await fetchJPDBInfo(word);
-        if (tooltip.classList.contains("visible")) {
-          hideTooltip();
-        } else {
-          showTooltip(info, e.touches[0]);
-        }
-      });
-
-      document.addEventListener("touchstart", (e) => {
-        if (!tooltip.contains(e.target) && !a.contains(e.target)) {
-          hideTooltip();
-        }
-      });
-
+      a.className = "word-link";
       return a;
     }
 
-    // Función para segmentar texto con kuromoji y crear enlaces palabra a palabra
-    function parseLineToLinksKuromoji(line, tokenizer) {
-      const fragment = document.createDocumentFragment();
-
-      const tokens = tokenizer.tokenize(line);
-
-      tokens.forEach(token => {
-        // Si es palabra japonesa, la convertimos en enlace, si no, texto normal
-        // Pero kuromoji ya segmenta todo, incluyendo signos de puntuación etc.
-        // Así que hacemos enlace para tokens que tengan caracteres japoneses o alfabetos latinos
-        // Ajustamos para que solo enlaces con kanji/hiragana/katakana, pero puedes ampliar si quieres.
-
-        // Para simplificar enlazamos todo excepto espacios y saltos
-        const surface = token.surface_form;
-
-        if (/[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(surface)) {
-          fragment.appendChild(crearEnlaceJPDB(surface));
-        } else {
-          fragment.appendChild(document.createTextNode(surface));
-        }
-      });
-
-      return fragment;
-    }
-
-    // Renderizar texto usando kuromoji
-    function renderTexto() {
+    // Renderizado con kuromoji para segmentar
+    function renderTexto(tokenizer) {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
 
       const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
 
-      kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, tokenizer) => {
-        if (err) {
-          contenedor.textContent = "Error cargando diccionario kuromoji: " + err.message;
-          return;
-        }
+      lineas.forEach((linea, index) => {
+        const div = document.createElement("div");
+        div.className = "line";
 
-        lineas.forEach((linea, index) => {
-          const div = document.createElement("div");
-          div.className = "line";
+        const span = document.createElement("span");
+        span.className = "text-content";
 
-          const span = document.createElement("span");
-          span.className = "text-content";
+        // Tokenizamos la línea
+        const tokens = tokenizer.tokenize(linea);
 
-          const linkedFragment = parseLineToLinksKuromoji(linea, tokenizer);
-          span.appendChild(linkedFragment);
-
-          const btn = document.createElement("button");
-          btn.textContent = "🗑️";
-          btn.className = "deleteBtn";
-          btn.onclick = () => {
-            lineas.splice(index, 1);
-            localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-            renderTexto();
-            hideTooltip();
-          };
-
-          div.appendChild(span);
-          div.appendChild(btn);
-          contenedor.appendChild(div);
+        tokens.forEach(token => {
+          // Enlace para cada palabra (surface_form)
+          span.appendChild(crearEnlaceJPDB(token.surface_form));
+          // Añadimos espacio pequeño entre palabras (opcional)
+          span.appendChild(document.createTextNode(" "));
         });
 
-        const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-        document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-      });
-    }
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "deleteBtn";
+        btn.onclick = () => {
+          lineas.splice(index, 1);
+          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+          renderTexto(tokenizer);
+        };
 
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-      hideTooltip();
-    };
+        div.appendChild(span);
+        div.appendChild(btn);
+        contenedor.appendChild(div);
+      });
+
+      // Actualizar contador sin espacios
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
 
     // Fuente
     let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
@@ -357,20 +198,32 @@
 
     document.getElementById("increaseFont").onclick = () => {
       fontSize += 2;
-      if (fontSize > 40) fontSize = 40;
       localStorage.setItem(FONT_KEY, fontSize);
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
     document.getElementById("decreaseFont").onclick = () => {
-      fontSize -= 2;
-      if (fontSize < 8) fontSize = 8;
+      fontSize = Math.max(8, fontSize - 2);
       localStorage.setItem(FONT_KEY, fontSize);
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
-    // Inicializa render
-    renderTexto();
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto(tokenizer);
+    };
+
+    // Construir tokenizer y renderizar al cargar
+    let tokenizer;
+    kuromoji.builder({ dicPath: "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dict/" }).build((err, builtTokenizer) => {
+      if (err) {
+        console.error("Error cargando kuromoji:", err);
+        document.getElementById("textContainer").textContent = "Error cargando el segmentador de japonés.";
+        return;
+      }
+      tokenizer = builtTokenizer;
+      renderTexto(tokenizer);
+    });
   </script>
 </body>
 </html>

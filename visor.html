@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles</title>
+  <title>Texto desde portapapeles + JPDB links y tooltip</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -25,6 +25,7 @@
       padding: 1em;
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
+      user-select: text;
     }
 
     .line {
@@ -32,12 +33,11 @@
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5em;
+      word-break: break-word;
     }
 
-    .line span {
+    .line span.text-content {
       flex-grow: 1;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
     }
 
     .deleteBtn {
@@ -48,6 +48,7 @@
       color: white;
       cursor: pointer;
       padding: 0.2em 0.5em;
+      flex-shrink: 0;
     }
 
     .deleteBtn:hover {
@@ -96,6 +97,43 @@
     #clearBtn:hover {
       background-color: #cc0000;
     }
+
+    /* Tooltip styles */
+    .tooltip {
+      position: absolute;
+      background-color: #222;
+      color: #eee;
+      padding: 0.6em 1em;
+      border-radius: 8px;
+      font-size: 0.9em;
+      max-width: 300px;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+      z-index: 1000;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+
+    .tooltip.visible {
+      opacity: 1;
+      pointer-events: auto;
+    }
+
+    .tooltip .word {
+      font-weight: bold;
+      margin-bottom: 0.3em;
+      display: block;
+    }
+
+    .tooltip .meanings {
+      font-style: italic;
+      margin-bottom: 0.3em;
+    }
+
+    .tooltip .context {
+      font-size: 0.8em;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
@@ -110,6 +148,8 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
+  <div id="tooltip" class="tooltip"></div>
+
   <script>
     const STORAGE_KEY = "textoGuardado";
     const FONT_KEY = "fontSize";
@@ -123,6 +163,151 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
+    // Regex para detectar bloques de caracteres japoneses (kanji, hiragana, katakana)
+    const japaneseRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
+
+    const tooltip = document.getElementById("tooltip");
+    let tooltipTimeout;
+
+    function positionTooltip(event) {
+      const padding = 10;
+      let x = event.pageX + padding;
+      let y = event.pageY + padding;
+
+      const tooltipRect = tooltip.getBoundingClientRect();
+      const viewportWidth = window.innerWidth;
+      const viewportHeight = window.innerHeight;
+
+      // Ajustar posición para que no se salga de la pantalla
+      if (x + tooltipRect.width > viewportWidth) {
+        x = event.pageX - tooltipRect.width - padding;
+      }
+      if (y + tooltipRect.height > viewportHeight) {
+        y = event.pageY - tooltipRect.height - padding;
+      }
+
+      tooltip.style.left = x + "px";
+      tooltip.style.top = y + "px";
+    }
+
+    async function fetchJPDBInfo(word) {
+      // Endpoint público de JPDB para parsear palabra
+      // La documentación no está muy clara, pero esta URL funciona con CORS
+      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(word)}`;
+
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error en API JPDB");
+        const data = await res.json();
+
+        // data debería tener tokens con significados y lecturas
+        // Buscamos token que coincida con la palabra exactamente
+        const token = data.tokens?.find(t => t.surface_form === word);
+
+        if (!token) return null;
+
+        // Formamos texto con info para tooltip
+        const reading = token.reading || "";
+        const meanings = token.meanings?.join(", ") || "";
+        return { word, reading, meanings };
+      } catch (e) {
+        // console.error(e);
+        return null;
+      }
+    }
+
+    function showTooltip(info, event) {
+      if (!info) {
+        tooltip.classList.remove("visible");
+        return;
+      }
+      tooltip.innerHTML = `
+        <span class="word">${info.word} ${info.reading ? `(${info.reading})` : ""}</span>
+        <span class="meanings">${info.meanings}</span>
+      `;
+      positionTooltip(event);
+      tooltip.classList.add("visible");
+    }
+
+    function hideTooltip() {
+      tooltip.classList.remove("visible");
+    }
+
+    function crearEnlaceJPDB(word) {
+      const a = document.createElement("a");
+      a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
+      a.target = "_blank";
+      a.rel = "noopener noreferrer";
+      a.textContent = word;
+      a.style.color = "#7ecbff";
+      a.style.textDecoration = "underline";
+      a.style.cursor = "pointer";
+
+      let fetchTimeout;
+
+      a.addEventListener("mouseenter", async (e) => {
+        clearTimeout(fetchTimeout);
+        const info = await fetchJPDBInfo(word);
+        showTooltip(info, e);
+      });
+
+      a.addEventListener("mousemove", positionTooltip);
+
+      a.addEventListener("mouseleave", () => {
+        fetchTimeout = setTimeout(() => {
+          hideTooltip();
+        }, 200);
+      });
+
+      // Para móviles, mostrar tooltip al tocar (y ocultar si se toca fuera)
+      a.addEventListener("touchstart", async (e) => {
+        e.preventDefault();
+        const info = await fetchJPDBInfo(word);
+        if (tooltip.classList.contains("visible")) {
+          hideTooltip();
+        } else {
+          showTooltip(info, e.touches[0]);
+        }
+      });
+
+      // Cerrar tooltip si se toca fuera
+      document.addEventListener("touchstart", (e) => {
+        if (!tooltip.contains(e.target) && !a.contains(e.target)) {
+          hideTooltip();
+        }
+      });
+
+      return a;
+    }
+
+    function parseLineToLinks(text) {
+      // Reemplazamos solo las palabras japonesas detectadas con enlaces
+      // Para mantener el resto intacto, hacemos split usando japaneseRegex y reconstruimos
+      const parts = [];
+      let lastIndex = 0;
+
+      for (const match of text.matchAll(japaneseRegex)) {
+        const start = match.index;
+        const end = start + match[0].length;
+
+        // Texto antes de palabra japonesa
+        if (start > lastIndex) {
+          parts.push(document.createTextNode(text.slice(lastIndex, start)));
+        }
+
+        // Enlace palabra japonesa
+        parts.push(crearEnlaceJPDB(match[0]));
+
+        lastIndex = end;
+      }
+      // Texto después de última palabra japonesa
+      if (lastIndex < text.length) {
+        parts.push(document.createTextNode(text.slice(lastIndex)));
+      }
+
+      return parts;
+    }
+
     function renderTexto() {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
@@ -133,7 +318,10 @@
         div.className = "line";
 
         const span = document.createElement("span");
-        span.textContent = linea;
+        span.className = "text-content";
+
+        const linkedParts = parseLineToLinks(linea);
+        linkedParts.forEach(part => span.appendChild(part));
 
         const btn = document.createElement("button");
         btn.textContent = "🗑️";
@@ -142,6 +330,7 @@
           lineas.splice(index, 1);
           localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
           renderTexto();
+          hideTooltip();
         };
 
         div.appendChild(span);
@@ -156,6 +345,7 @@
     document.getElementById("clearBtn").onclick = () => {
       localStorage.removeItem(STORAGE_KEY);
       renderTexto();
+      hideTooltip();
     };
 
     // Fuente

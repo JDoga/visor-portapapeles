@@ -20,15 +20,38 @@
       margin-bottom: 1em;
     }
 
-    pre {
-      white-space: pre-wrap;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
+    #textContainer {
       background-color: #1e1e1e;
       padding: 1em;
       border-radius: 8px;
-      font-size: 1em;
-      color: #f1f1f1;
+      font-size: var(--fontSize, 16px);
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5em;
+    }
+
+    .line span {
+      flex-grow: 1;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .deleteBtn {
+      margin-left: 0.5em;
+      background-color: #ff4444;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 0.2em 0.5em;
+    }
+
+    .deleteBtn:hover {
+      background-color: #cc0000;
     }
 
     #charCount {
@@ -36,6 +59,26 @@
       font-size: 0.9em;
       text-align: center;
       color: #cccccc;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background-color: #555;
     }
 
     #clearBtn {
@@ -57,33 +100,81 @@
 </head>
 <body>
   <h2>Texto acumulado:</h2>
-  <pre id="output">Cargando...</pre>
+  <div id="textContainer"></div>
   <div id="charCount"></div>
-  <button id="clearBtn">🗑️ Borrar texto</button>
+
+  <div class="controls">
+    <button id="increaseFont">➕ Aumentar</button>
+    <button id="decreaseFont">➖ Reducir</button>
+  </div>
+
+  <button id="clearBtn">🗑️ Borrar todo</button>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
+    const FONT_KEY = "fontSize";
     const params = new URLSearchParams(window.location.search);
     const nuevoTexto = params.get("text") || "";
     const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-    const anterior = localStorage.getItem(STORAGE_KEY) || "";
-    const combinado = decodificado
-      ? anterior + (anterior ? "\n" : "") + decodificado
-      : anterior;
+    let anterior = localStorage.getItem(STORAGE_KEY) || "";
+    if (decodificado) {
+      anterior += (anterior ? "\n" : "") + decodificado;
+      localStorage.setItem(STORAGE_KEY, anterior);
+    }
 
-    localStorage.setItem(STORAGE_KEY, combinado);
-    document.getElementById("output").textContent = combinado || "[No hay texto guardado]";
+    function renderTexto() {
+      const contenedor = document.getElementById("textContainer");
+      contenedor.innerHTML = "";
 
-    // Aquí está el único cambio: contar sin espacios
-    const sinEspacios = combinado.replace(/\s/g, "");
-    document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      lineas.forEach((linea, index) => {
+        const div = document.createElement("div");
+        div.className = "line";
 
-    document.getElementById("clearBtn").addEventListener("click", () => {
+        const span = document.createElement("span");
+        span.textContent = linea;
+
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "deleteBtn";
+        btn.onclick = () => {
+          lineas.splice(index, 1);
+          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+          renderTexto();
+        };
+
+        div.appendChild(span);
+        div.appendChild(btn);
+        contenedor.appendChild(div);
+      });
+
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
+
+    document.getElementById("clearBtn").onclick = () => {
       localStorage.removeItem(STORAGE_KEY);
-      document.getElementById("output").textContent = "[Texto eliminado]";
-      document.getElementById("charCount").textContent = "📏 Total: 0 caracteres (sin espacios)";
-    });
+      renderTexto();
+    };
+
+    // Fuente
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+    document.getElementById("increaseFont").onclick = () => {
+      fontSize += 2;
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    document.getElementById("decreaseFont").onclick = () => {
+      fontSize = Math.max(8, fontSize - 2);
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    renderTexto();
   </script>
 </body>
 </html>

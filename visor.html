@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles + JPDB links simples</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Texto desde portapapeles + JPDB links (tokenizado por palabra)</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -13,35 +13,22 @@
       color: #f1f1f1;
       line-height: 1.6;
     }
-
-    h2 {
-      font-size: 1.3em;
-      text-align: center;
-      margin-bottom: 1em;
-    }
-
     #textContainer {
       background-color: #1e1e1e;
       padding: 1em;
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
       user-select: text;
-      white-space: pre-wrap;
-      word-break: break-word;
     }
-
     .line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
       margin-bottom: 0.5em;
       word-break: break-word;
     }
-
-    .line span.text-content {
-      flex-grow: 1;
+    a.jpdb-link {
+      color: #7ecbff;
+      text-decoration: underline;
+      cursor: pointer;
     }
-
     .deleteBtn {
       margin-left: 0.5em;
       background-color: #ff4444;
@@ -50,25 +37,20 @@
       color: white;
       cursor: pointer;
       padding: 0.2em 0.5em;
-      flex-shrink: 0;
     }
-
     .deleteBtn:hover {
       background-color: #cc0000;
     }
-
     #charCount {
       margin-top: 1em;
       font-size: 0.9em;
       text-align: center;
       color: #cccccc;
     }
-
     .controls {
       text-align: center;
       margin-top: 1em;
     }
-
     .controls button {
       margin: 0 0.3em;
       padding: 0.5em 0.8em;
@@ -79,11 +61,9 @@
       color: white;
       cursor: pointer;
     }
-
     .controls button:hover {
       background-color: #555;
     }
-
     #clearBtn {
       display: block;
       margin: 2em auto 0 auto;
@@ -95,15 +75,8 @@
       color: white;
       cursor: pointer;
     }
-
     #clearBtn:hover {
       background-color: #cc0000;
-    }
-
-    a.jpdb-link {
-      color: #7ecbff;
-      text-decoration: underline;
-      cursor: pointer;
     }
   </style>
 </head>
@@ -111,12 +84,10 @@
   <h2>Texto acumulado:</h2>
   <div id="textContainer"></div>
   <div id="charCount"></div>
-
   <div class="controls">
     <button id="increaseFont">➕ Aumentar</button>
     <button id="decreaseFont">➖ Reducir</button>
   </div>
-
   <button id="clearBtn">🗑️ Borrar todo</button>
 
   <script>
@@ -132,9 +103,7 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    // Regex para detectar bloques japoneses (kanji, hiragana, katakana)
-    const japaneseRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
-
+    // Crea enlace JPDB para una palabra
     function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
@@ -145,61 +114,84 @@
       return a;
     }
 
-    function parseLineToLinks(text) {
-      const parts = [];
-      let lastIndex = 0;
+    // Usa JPDB API para parsear la línea y devolver un fragmento DocumentFragment con enlaces por token
+    async function parseLineWithJPDB(line) {
+      const fragment = document.createDocumentFragment();
 
-      for (const match of text.matchAll(japaneseRegex)) {
-        const start = match.index;
-        const end = start + match[0].length;
+      if (!line.trim()) return fragment;
 
-        // Texto antes de palabra japonesa
-        if (start > lastIndex) {
-          parts.push(document.createTextNode(text.slice(lastIndex, start)));
+      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error("Error API JPDB");
+        const data = await res.json();
+
+        if (!data.tokens || data.tokens.length === 0) {
+          // Si no hay tokens, devuelve texto normal
+          fragment.appendChild(document.createTextNode(line));
+          return fragment;
         }
 
-        // Enlace palabra japonesa
-        parts.push(crearEnlaceJPDB(match[0]));
+        let lastIndex = 0;
 
-        lastIndex = end;
+        for (const token of data.tokens) {
+          // token.surface_form = texto de la palabra
+          // token.position = posición (0-based) en el texto original
+
+          // Añadimos el texto entre lastIndex y posición token, si hay
+          if (token.position > lastIndex) {
+            fragment.appendChild(
+              document.createTextNode(line.slice(lastIndex, token.position))
+            );
+          }
+
+          // Añadimos enlace para token.surface_form
+          fragment.appendChild(crearEnlaceJPDB(token.surface_form));
+
+          lastIndex = token.position + token.surface_form.length;
+        }
+
+        // Añadimos resto de texto si queda
+        if (lastIndex < line.length) {
+          fragment.appendChild(document.createTextNode(line.slice(lastIndex)));
+        }
+
+      } catch (e) {
+        // En caso de error, mostrar texto plano
+        fragment.appendChild(document.createTextNode(line));
       }
 
-      // Texto después de última palabra japonesa
-      if (lastIndex < text.length) {
-        parts.push(document.createTextNode(text.slice(lastIndex)));
-      }
-
-      return parts;
+      return fragment;
     }
 
-    function renderTexto() {
+    // Renderiza todo el texto almacenado, con enlaces tokenizados palabra por palabra usando JPDB API
+    async function renderTexto() {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
 
       const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-      lineas.forEach((linea, index) => {
+
+      for (let i = 0; i < lineas.length; i++) {
+        const linea = lineas[i];
         const div = document.createElement("div");
         div.className = "line";
 
-        const span = document.createElement("span");
-        span.className = "text-content";
+        const fragment = await parseLineWithJPDB(linea);
 
-        const linkedParts = parseLineToLinks(linea);
-        linkedParts.forEach(part => span.appendChild(part));
+        div.appendChild(fragment);
 
         const btn = document.createElement("button");
         btn.textContent = "🗑️";
         btn.className = "deleteBtn";
         btn.onclick = () => {
-          lineas.splice(index, 1);
+          lineas.splice(i, 1);
           localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
           renderTexto();
         };
 
-        div.appendChild(span);
         div.appendChild(btn);
         contenedor.appendChild(div);
-      });
+      }
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
       document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
@@ -226,6 +218,7 @@
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
+    // Render inicial
     renderTexto();
   </script>
 </body>

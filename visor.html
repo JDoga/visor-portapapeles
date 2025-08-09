@@ -1,90 +1,120 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Texto con parseo oficial JPDB y enlaces</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 1em;
-      background-color: #121212;
-      color: #f1f1f1;
-      line-height: 1.6;
-    }
-    h2 {
-      font-size: 1.3em;
-      text-align: center;
-      margin-bottom: 1em;
-    }
-    #textContainer {
-      background-color: #1e1e1e;
-      padding: 1em;
-      border-radius: 8px;
-      font-size: var(--fontSize, 16px);
-      min-height: 120px;
-    }
-    .line {
-      margin-bottom: 1em;
-    }
-    a.jpdb-link {
-      color: #3399ff;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-    a.jpdb-link:hover {
-      color: #66bbff;
-    }
-    #charCount {
-      margin-top: 1em;
-      font-size: 0.9em;
-      text-align: center;
-      color: #cccccc;
-    }
-    .controls {
-      text-align: center;
-      margin-top: 1em;
-    }
-    .controls button {
-      margin: 0 0.3em;
-      padding: 0.5em 0.8em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #333;
-      color: white;
-      cursor: pointer;
-    }
-    .controls button:hover {
-      background-color: #555;
-    }
-    #clearBtn {
-      display: block;
-      margin: 2em auto 0 auto;
-      padding: 0.6em 1.2em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #ff4444;
-      color: white;
-      cursor: pointer;
-    }
-    #clearBtn:hover {
-      background-color: #cc0000;
-    }
-    #loadingMessage {
-      text-align: center;
-      margin-top: 1em;
-      font-style: italic;
-      color: #888;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Texto parseado y enlazado a JPDB</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 1em;
+    background-color: #121212;
+    color: #f1f1f1;
+    line-height: 1.6;
+  }
+  h2 {
+    font-size: 1.3em;
+    text-align: center;
+    margin-bottom: 1em;
+  }
+  #textContainer {
+    background-color: #1e1e1e;
+    padding: 1em;
+    border-radius: 8px;
+    font-size: var(--fontSize, 16px);
+    user-select: text;
+  }
+  .line {
+    margin-bottom: 1em;
+  }
+  .word-link {
+    color: #f1f1f1; /* blanco, sin subrayado */
+    text-decoration: none;
+    cursor: pointer;
+    position: relative;
+  }
+  .word-link:hover,
+  .word-link:focus {
+    text-decoration: underline;
+  }
+  .deleteBtn {
+    margin-left: 0.5em;
+    background-color: #ff4444;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    padding: 0.2em 0.5em;
+  }
+  .deleteBtn:hover {
+    background-color: #cc0000;
+  }
+  #charCount {
+    margin-top: 1em;
+    font-size: 0.9em;
+    text-align: center;
+    color: #cccccc;
+  }
+  .controls {
+    text-align: center;
+    margin-top: 1em;
+  }
+  .controls button {
+    margin: 0 0.3em;
+    padding: 0.5em 0.8em;
+    font-size: 1em;
+    border: none;
+    border-radius: 6px;
+    background-color: #333;
+    color: white;
+    cursor: pointer;
+  }
+  .controls button:hover {
+    background-color: #555;
+  }
+  #clearBtn {
+    display: block;
+    margin: 2em auto 0 auto;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    border: none;
+    border-radius: 6px;
+    background-color: #ff4444;
+    color: white;
+    cursor: pointer;
+  }
+  #clearBtn:hover {
+    background-color: #cc0000;
+  }
+  /* Tooltip */
+  .tooltip {
+    position: absolute;
+    bottom: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    background: #222;
+    color: #eee;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: 0 2px 8px rgba(0,0,0,0.8);
+    white-space: normal;
+    width: 250px;
+    font-size: 0.9em;
+    z-index: 1000;
+    pointer-events: none;
+    opacity: 0;
+    transition: opacity 0.2s ease-in-out;
+  }
+  .tooltip.visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+</style>
 </head>
 <body>
-  <h2>Texto acumulado con parseo oficial JPDB</h2>
+  <h2>Texto acumulado (parseado palabra a palabra):</h2>
   <div id="textContainer"></div>
-  <div id="loadingMessage" style="display:none;">⏳ Parseando texto, espera un momento...</div>
   <div id="charCount"></div>
 
   <div class="controls">
@@ -94,94 +124,162 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
-  <script>
-    const STORAGE_KEY = "textoGuardado";
-    const FONT_KEY = "fontSize";
-    const params = new URLSearchParams(window.location.search);
-    const nuevoTexto = params.get("text") || "";
-    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+<script>
+const STORAGE_KEY = "textoGuardado";
+const FONT_KEY = "fontSize";
 
-    let anterior = localStorage.getItem(STORAGE_KEY) || "";
-    if (decodificado) {
-      anterior += (anterior ? "\n" : "") + decodificado;
-      localStorage.setItem(STORAGE_KEY, anterior);
+let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+document.getElementById("increaseFont").onclick = () => {
+  fontSize += 2;
+  localStorage.setItem(FONT_KEY, fontSize);
+  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+};
+
+document.getElementById("decreaseFont").onclick = () => {
+  fontSize = Math.max(8, fontSize - 2);
+  localStorage.setItem(FONT_KEY, fontSize);
+  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+};
+
+document.getElementById("clearBtn").onclick = () => {
+  localStorage.removeItem(STORAGE_KEY);
+  renderTexto();
+};
+
+async function parsearJPDB(texto) {
+  const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(texto)}`;
+  try {
+    const res = await fetch(url);
+    if (!res.ok) throw new Error(`Error en API: ${res.status}`);
+    const data = await res.json();
+    // data.result es un array de objetos { word, reading, meaning, ... }
+    return data.result;
+  } catch (e) {
+    console.error("Error fetch JPDB parse:", e);
+    return null;
+  }
+}
+
+// Función para crear tooltip
+function crearTooltip(texto) {
+  const tooltip = document.createElement("div");
+  tooltip.className = "tooltip";
+  tooltip.textContent = texto;
+  document.body.appendChild(tooltip);
+  return tooltip;
+}
+
+function posicionarTooltip(tooltip, elemento) {
+  const rect = elemento.getBoundingClientRect();
+  const tooltipRect = tooltip.getBoundingClientRect();
+  const top = window.scrollY + rect.top - tooltipRect.height - 8;
+  const left = window.scrollX + rect.left + rect.width / 2 - tooltipRect.width / 2;
+
+  tooltip.style.top = `${top}px`;
+  tooltip.style.left = `${left}px`;
+}
+
+function mostrarTooltip(tooltip) {
+  tooltip.classList.add("visible");
+}
+
+function ocultarTooltip(tooltip) {
+  tooltip.classList.remove("visible");
+  setTimeout(() => {
+    if (tooltip.parentNode) tooltip.parentNode.removeChild(tooltip);
+  }, 300);
+}
+
+async function renderTexto() {
+  const contenedor = document.getElementById("textContainer");
+  contenedor.innerHTML = "";
+
+  let textoGuardado = localStorage.getItem(STORAGE_KEY) || "";
+  if (!textoGuardado.trim()) {
+    contenedor.textContent = "(No hay texto guardado)";
+    document.getElementById("charCount").textContent = "";
+    return;
+  }
+
+  const lineas = textoGuardado.split("\n").filter(l => l.trim() !== "");
+
+  let totalCaracteresSinEspacios = 0;
+
+  for (let i = 0; i < lineas.length; i++) {
+    const lineaTexto = lineas[i];
+    const lineaDiv = document.createElement("div");
+    lineaDiv.className = "line";
+
+    // Parsear línea con JPDB API
+    const palabras = await parsearJPDB(lineaTexto);
+
+    if (!palabras) {
+      // Si falla parsear, mostrar línea normal sin enlaces
+      lineaDiv.textContent = lineaTexto;
+      contenedor.appendChild(lineaDiv);
+      continue;
     }
 
-    const textContainer = document.getElementById("textContainer");
-    const loadingMessage = document.getElementById("loadingMessage");
+    // Contenedor para palabras con enlaces
+    palabras.forEach(({ word, reading, meaning }) => {
+      totalCaracteresSinEspacios += word.replace(/\s/g, "").length;
 
-    async function parseLineConJPDB(line) {
-      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
-      try {
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Error en la API");
-        const data = await response.json();
-        // data.result es un array de objetos con token: palabra parseada
-        return data.result.map(tokenObj => tokenObj.token);
-      } catch (e) {
-        console.error("Error parseando con JPDB", e);
-        // Si falla, devolver línea completa para no perder texto
-        return [line];
-      }
-    }
-
-    function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
+      a.className = "word-link";
       a.textContent = word;
-      a.className = "jpdb-link";
-      return a;
-    }
 
-    async function renderTexto() {
-      loadingMessage.style.display = "block";
-      textContainer.innerHTML = "";
+      // Tooltip: mostrar significado y lectura
+      let tooltip;
+      a.addEventListener("mouseenter", () => {
+        tooltip = crearTooltip(`${word}\n${reading ? "Lectura: " + reading + "\n" : ""}${meaning ? meaning : ""}`);
+        posicionarTooltip(tooltip, a);
+        mostrarTooltip(tooltip);
+      });
+      a.addEventListener("mouseleave", () => {
+        if (tooltip) ocultarTooltip(tooltip);
+      });
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      // Soporte táctil (tap) para tooltip
+      a.addEventListener("touchstart", (e) => {
+        e.preventDefault();
+        if (tooltip) {
+          ocultarTooltip(tooltip);
+          tooltip = null;
+        } else {
+          tooltip = crearTooltip(`${word}\n${reading ? "Lectura: " + reading + "\n" : ""}${meaning ? meaning : ""}`);
+          posicionarTooltip(tooltip, a);
+          mostrarTooltip(tooltip);
+        }
+      });
 
-      for (const linea of lineas) {
-        const div = document.createElement("div");
-        div.className = "line";
+      lineaDiv.appendChild(a);
+      lineaDiv.appendChild(document.createTextNode(" "));
+    });
 
-        const tokens = await parseLineConJPDB(linea);
-
-        tokens.forEach(token => {
-          div.appendChild(crearEnlaceJPDB(token));
-        });
-
-        textContainer.appendChild(div);
-      }
-
-      loadingMessage.style.display = "none";
-
-      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-    }
-
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
+    // Botón borrar línea
+    const btnEliminar = document.createElement("button");
+    btnEliminar.className = "deleteBtn";
+    btnEliminar.textContent = "🗑️";
+    btnEliminar.title = "Eliminar línea";
+    btnEliminar.onclick = () => {
+      lineas.splice(i, 1);
+      localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
       renderTexto();
     };
+    lineaDiv.appendChild(btnEliminar);
 
-    // Fuente
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    contenedor.appendChild(lineaDiv);
+  }
 
-    document.getElementById("increaseFont").onclick = () => {
-      fontSize += 2;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
+  document.getElementById("charCount").textContent = `📏 Total: ${totalCaracteresSinEspacios} caracteres (sin espacios)`;
+}
 
-    document.getElementById("decreaseFont").onclick = () => {
-      fontSize = Math.max(8, fontSize - 2);
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    renderTexto();
-  </script>
+renderTexto();
+</script>
 </body>
 </html>

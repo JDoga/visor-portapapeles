@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Texto desde portapapeles con enlaces JPDB</title>
+  <title>Texto con parseo oficial JPDB y enlaces</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -23,11 +23,10 @@
       padding: 1em;
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
-      white-space: pre-wrap;
-      word-wrap: break-word;
+      min-height: 120px;
     }
     .line {
-      margin-bottom: 0.8em;
+      margin-bottom: 1em;
     }
     a.jpdb-link {
       color: #3399ff;
@@ -74,11 +73,18 @@
     #clearBtn:hover {
       background-color: #cc0000;
     }
+    #loadingMessage {
+      text-align: center;
+      margin-top: 1em;
+      font-style: italic;
+      color: #888;
+    }
   </style>
 </head>
 <body>
-  <h2>Texto acumulado con enlaces a JPDB</h2>
+  <h2>Texto acumulado con parseo oficial JPDB</h2>
   <div id="textContainer"></div>
+  <div id="loadingMessage" style="display:none;">⏳ Parseando texto, espera un momento...</div>
   <div id="charCount"></div>
 
   <div class="controls">
@@ -87,9 +93,6 @@
   </div>
 
   <button id="clearBtn">🗑️ Borrar todo</button>
-
-  <!-- TinySegmenter para segmentar palabras japonesas -->
-  <script src="https://cdn.jsdelivr.net/npm/tiny-segmenter@1.0.0/dist/tiny-segmenter.min.js"></script>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
@@ -104,7 +107,23 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    const segmenter = new TinySegmenter();
+    const textContainer = document.getElementById("textContainer");
+    const loadingMessage = document.getElementById("loadingMessage");
+
+    async function parseLineConJPDB(line) {
+      const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(line)}`;
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Error en la API");
+        const data = await response.json();
+        // data.result es un array de objetos con token: palabra parseada
+        return data.result.map(tokenObj => tokenObj.token);
+      } catch (e) {
+        console.error("Error parseando con JPDB", e);
+        // Si falla, devolver línea completa para no perder texto
+        return [line];
+      }
+    }
 
     function crearEnlaceJPDB(word) {
       const a = document.createElement("a");
@@ -116,33 +135,26 @@
       return a;
     }
 
-    function segmentarYEnlazar(text) {
-      const tokens = segmenter.segment(text);
-      const fragment = document.createDocumentFragment();
-
-      tokens.forEach(token => {
-        // Si el token contiene japonés (Kanji, Hiragana, Katakana), creamos enlace
-        if (/[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u.test(token)) {
-          fragment.appendChild(crearEnlaceJPDB(token));
-        } else {
-          // Texto plano normal (espacios, puntuación, etc)
-          fragment.appendChild(document.createTextNode(token));
-        }
-      });
-      return fragment;
-    }
-
-    function renderTexto() {
-      const contenedor = document.getElementById("textContainer");
-      contenedor.innerHTML = "";
+    async function renderTexto() {
+      loadingMessage.style.display = "block";
+      textContainer.innerHTML = "";
 
       const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-      lineas.forEach(linea => {
+
+      for (const linea of lineas) {
         const div = document.createElement("div");
         div.className = "line";
-        div.appendChild(segmentarYEnlazar(linea));
-        contenedor.appendChild(div);
-      });
+
+        const tokens = await parseLineConJPDB(linea);
+
+        tokens.forEach(token => {
+          div.appendChild(crearEnlaceJPDB(token));
+        });
+
+        textContainer.appendChild(div);
+      }
+
+      loadingMessage.style.display = "none";
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
       document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";

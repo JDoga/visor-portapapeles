@@ -35,8 +35,6 @@
 <div id="textContainer"></div>
 
 <script>
-const STORAGE_KEY = "textoGuardado";
-
 async function parseJPDB(sentence) {
   try {
     const response = await fetch(`https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(sentence)}`);
@@ -49,14 +47,12 @@ async function parseJPDB(sentence) {
   }
 }
 
-async function renderTexto() {
+async function renderTexto(texto) {
   const container = document.getElementById('textContainer');
   container.innerHTML = '';
 
-  let texto = localStorage.getItem(STORAGE_KEY) || '';
-
   if (!texto.trim()) {
-    container.textContent = 'No hay texto guardado';
+    container.textContent = 'No hay texto recibido';
     return;
   }
 
@@ -89,8 +85,12 @@ async function renderTexto() {
   }
 }
 
-// Cargar y mostrar texto al abrir página
-renderTexto();
+// Leer texto del parámetro URL ?text=...
+const params = new URLSearchParams(window.location.search);
+const textoURL = decodeURIComponent(params.get('text') || '').replace(/\+/g, ' ');
+
+// Ejecutar render con ese texto
+renderTexto(textoURL);
 </script>
 
 </body>

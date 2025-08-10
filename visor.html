@@ -13,15 +13,12 @@
       color: #f1f1f1;
       line-height: 1.6;
       position: relative;
-      user-select: text;
     }
-
     h2 {
       font-size: 1.3em;
       text-align: center;
       margin-bottom: 1em;
     }
-
     #textContainer {
       background-color: #1e1e1e;
       padding: 1em;
@@ -29,22 +26,18 @@
       font-size: var(--fontSize, 16px);
       user-select: text;
     }
-
     .line {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5em;
-      user-select: text;
     }
-
     .line span {
       flex-grow: 1;
       word-wrap: break-word;
       overflow-wrap: break-word;
       user-select: text;
     }
-
     .deleteBtn {
       margin-left: 0.5em;
       background-color: #ff4444;
@@ -53,27 +46,20 @@
       color: white;
       cursor: pointer;
       padding: 0.2em 0.5em;
-      user-select: none;
     }
-
     .deleteBtn:hover {
       background-color: #cc0000;
     }
-
     #charCount {
       margin-top: 1em;
       font-size: 0.9em;
       text-align: center;
       color: #cccccc;
-      user-select: none;
     }
-
     .controls {
       text-align: center;
       margin-top: 1em;
-      user-select: none;
     }
-
     .controls button {
       margin: 0 0.3em;
       padding: 0.5em 0.8em;
@@ -83,13 +69,10 @@
       background-color: #333;
       color: white;
       cursor: pointer;
-      user-select: none;
     }
-
     .controls button:hover {
       background-color: #555;
     }
-
     #clearBtn {
       display: block;
       margin: 2em auto 0 auto;
@@ -100,28 +83,28 @@
       background-color: #ff4444;
       color: white;
       cursor: pointer;
-      user-select: none;
     }
-
     #clearBtn:hover {
       background-color: #cc0000;
     }
-
+    /* Botón de búsqueda flotante */
     #searchBtn {
-      position: fixed;
+      position: absolute;
       display: none;
-      padding: 0.4em 0.7em;
-      background: #0a84ff;
+      padding: 0.3em 0.7em;
+      background-color: #0066cc;
       color: white;
-      border-radius: 6px;
-      font-weight: 600;
-      font-size: 1rem;
+      border: none;
+      border-radius: 5px;
       cursor: pointer;
-      box-shadow: 0 2px 10px rgba(0,0,0,0.3);
+      z-index: 1000;
+      font-size: 0.9em;
       user-select: none;
-      z-index: 9999;
-      transition: opacity 0.3s ease;
-      -webkit-tap-highlight-color: transparent;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: background-color 0.2s ease;
+    }
+    #searchBtn:hover {
+      background-color: #004a99;
     }
   </style>
 </head>
@@ -137,7 +120,8 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
-  <button id="searchBtn" aria-label="Buscar en JPDB">🔍 Buscar</button>
+  <!-- Botón flotante para búsqueda -->
+  <button id="searchBtn" aria-label="Buscar selección en JPDB"></button>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
@@ -152,8 +136,11 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
+    const textContainer = document.getElementById("textContainer");
+    const searchBtn = document.getElementById("searchBtn");
+
     function renderTexto() {
-      const contenedor = document.getElementById("textContainer");
+      const contenedor = textContainer;
       contenedor.innerHTML = "";
 
       const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
@@ -179,7 +166,8 @@
       });
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+      document.getElementById("charCount").textContent =
+        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
 
     document.getElementById("clearBtn").onclick = () => {
@@ -203,80 +191,65 @@
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
-    renderTexto();
-
-    // Botón de búsqueda para texto seleccionado
-    const searchBtn = document.getElementById("searchBtn");
-
-    function posicionarBoton(x, y) {
-      const btnWidth = searchBtn.offsetWidth;
-      const btnHeight = searchBtn.offsetHeight;
-      const padding = 8;
-
-      // Ajustar para que no se salga de la pantalla
-      let left = x;
-      let top = y - btnHeight - padding;
-
-      if (left + btnWidth > window.innerWidth) {
-        left = window.innerWidth - btnWidth - padding;
-      }
-      if (top < padding) {
-        top = y + padding;
-      }
-
-      searchBtn.style.left = `${left}px`;
-      searchBtn.style.top = `${top}px`;
-    }
-
-    document.addEventListener("selectionchange", () => {
+    // Mostrar botón cuando hay selección
+    function showSearchButton() {
       const selection = window.getSelection();
-      const texto = selection.toString().trim();
-
-      if (texto.length > 0) {
-        // Obtener la posición del texto seleccionado
-        const range = selection.getRangeAt(0);
-        const rect = range.getBoundingClientRect();
-
-        posicionarBoton(rect.left + window.scrollX, rect.top + window.scrollY);
-
-        // Mostrar el botón
-        searchBtn.style.display = "block";
-        searchBtn.style.opacity = "1";
-      } else {
-        searchBtn.style.opacity = "0";
-        setTimeout(() => {
-          if (searchBtn.style.opacity === "0") {
-            searchBtn.style.display = "none";
-          }
-        }, 300);
+      if (!selection.rangeCount) {
+        searchBtn.style.display = "none";
+        return;
       }
-    });
-
-    searchBtn.addEventListener("click", () => {
-      const selection = window.getSelection();
-      const texto = selection.toString().trim();
-
-      if (texto.length === 0) {
+      const selectedText = selection.toString().trim();
+      if (!selectedText) {
         searchBtn.style.display = "none";
         return;
       }
 
-      const url = `https://jpdb.io/search?keyword=${encodeURIComponent(texto)}`;
+      const range = selection.getRangeAt(0);
+      if (!textContainer.contains(range.commonAncestorContainer)) {
+        searchBtn.style.display = "none";
+        return;
+      }
 
-      // Crear enlace temporal para mejorar compatibilidad iOS Safari
-      const a = document.createElement("a");
-      a.href = url;
-      a.target = "_blank";
-      a.rel = "noopener noreferrer";
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
+      const rect = range.getBoundingClientRect();
 
-      // Limpiar selección para evitar menú nativo molesto
-      selection.removeAllRanges();
+      // Posicionar debajo del texto seleccionado
+      let topPos = window.scrollY + rect.bottom + 10;
+      let leftPos = window.scrollX + rect.left;
 
-      searchBtn.style.display = "none";
+      // Si se sale por abajo, ponerlo arriba
+      if (topPos + searchBtn.offsetHeight > window.scrollY + window.innerHeight) {
+        topPos = window.scrollY + rect.top - searchBtn.offsetHeight - 10;
+      }
+
+      searchBtn.style.top = topPos + "px";
+      searchBtn.style.left = leftPos + "px";
+      searchBtn.textContent =
+        `Buscar "${selectedText.length > 15 ? selectedText.slice(0,15) + "…" : selectedText}"`;
+      searchBtn.style.display = "inline-block";
+      searchBtn.dataset.query = selectedText;
+    }
+
+    document.addEventListener("selectionchange", () => {
+      setTimeout(showSearchButton, 0);
     });
+
+    document.addEventListener("click", (e) => {
+      if (!searchBtn.contains(e.target)) {
+        searchBtn.style.display = "none";
+      }
+    });
+
+    searchBtn.addEventListener("click", () => {
+      const query = searchBtn.dataset.query;
+      if (query) {
+        const url = `https://jpdb.io/search?q=${encodeURIComponent(query)}`;
+        window.open(url, "_blank");
+        searchBtn.style.display = "none";
+        window.getSelection().removeAllRanges();
+      }
+    });
+
+    renderTexto();
   </script>
 </body>
 </html>

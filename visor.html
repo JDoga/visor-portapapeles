@@ -1,305 +1,77 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Visor JPDB - Tokenización correcta</title>
-  <style>
-    body {
-      background: #121212;
-      color: #eee;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0; padding: 1em;
-      line-height: 1.5;
-    }
-    h2 {
-      text-align: center;
-      margin-bottom: 1em;
-      font-weight: normal;
-    }
-    #textContainer {
-      background: #1e1e1e;
-      border-radius: 8px;
-      padding: 1em;
-      min-height: 150px;
-      user-select: text;
-      font-size: var(--fontSize, 16px);
-    }
-    .line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5em;
-      flex-wrap: wrap;
-    }
-    .line .words {
-      flex-grow: 1;
-      display: flex;
-      flex-wrap: wrap;
-      gap: 0.3em;
-    }
-    .line .words a {
-      color: #7ecbff;
-      text-decoration: underline;
-      cursor: pointer;
-      white-space: nowrap;
-    }
-    .deleteBtn {
-      background: #ff4444;
-      border: none;
-      border-radius: 5px;
-      color: white;
-      cursor: pointer;
-      padding: 0.15em 0.5em;
-      margin-left: 0.6em;
-      flex-shrink: 0;
-    }
-    .deleteBtn:hover {
-      background: #cc0000;
-    }
-    #charCount {
-      text-align: center;
-      margin-top: 1em;
-      color: #aaa;
-      font-size: 0.9em;
-    }
-    .controls {
-      text-align: center;
-      margin-top: 1em;
-      user-select: none;
-    }
-    .controls button {
-      margin: 0 0.4em;
-      padding: 0.5em 0.9em;
-      font-size: 1em;
-      border-radius: 6px;
-      border: none;
-      background: #333;
-      color: white;
-      cursor: pointer;
-    }
-    .controls button:hover {
-      background: #555;
-    }
-    #clearBtn {
-      margin: 2em auto 0;
-      display: block;
-      padding: 0.6em 1.2em;
-      font-size: 1em;
-      border-radius: 6px;
-      border: none;
-      background: #ff4444;
-      color: white;
-      cursor: pointer;
-    }
-    #clearBtn:hover {
-      background: #cc0000;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Visor JPDB + Backend</title>
+<style>
+  body { font-family: sans-serif; background:#121212; color:#eee; padding:1em; }
+  a { color:#7ecbff; text-decoration: underline; cursor: pointer; }
+</style>
 </head>
 <body>
-
-  <h2>Texto acumulado (separado y linkeado palabra por palabra)</h2>
-
+  <h1>Texto parseado con backend JPDB</h1>
   <div id="textContainer"></div>
-  <div id="charCount"></div>
 
-  <div class="controls">
-    <button id="increaseFont">➕ Aumentar fuente</button>
-    <button id="decreaseFont">➖ Reducir fuente</button>
-  </div>
+<script>
+const STORAGE_KEY = "textoGuardado";
+const API_URL = 'https://jpdb-backend-production.up.railway.app/parse'; // URL backend pública
+const params = new URLSearchParams(window.location.search);
+const nuevoTexto = params.get("text") || "";
+const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-  <button id="clearBtn">🗑️ Borrar todo</button>
+let anterior = localStorage.getItem(STORAGE_KEY) || "";
+if (decodificado) {
+  anterior += (anterior ? "\n" : "") + decodificado;
+  localStorage.setItem(STORAGE_KEY, anterior);
+}
 
-  <script>
-    const STORAGE_KEY = "jpdbTextoTokenizado";
-    const FONT_KEY = "fontSize";
+async function parseWithBackend(sentence) {
+  try {
+    const res = await fetch(API_URL, {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ sentence })
+    });
+    if (!res.ok) throw new Error('API error');
+    return await res.json();
+  } catch {
+    return null;
+  }
+}
 
-    // Obtener texto desde URL, decodificar + reemplazar + con espacios
-    const urlParams = new URLSearchParams(window.location.search);
-    const textoUrl = urlParams.get("text") || "";
-    const textoDecodificado = decodeURIComponent(textoUrl.replace(/\+/g, " ")).trim();
+function crearEnlaceJPDB(word) {
+  const a = document.createElement("a");
+  a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
+  a.target = "_blank";
+  a.rel = "noopener noreferrer";
+  a.textContent = word;
+  return a;
+}
 
-    // Estado local: array de líneas tokenizadas (cada línea es array de tokens)
-    // Cada token: { surface_form: string, reading: string|null, meanings: string[]|null }
-    let lineasTokenizadas = [];
+async function renderTexto() {
+  const contenedor = document.getElementById("textContainer");
+  contenedor.innerHTML = "";
 
-    // Obtener fuente actual
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+  const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
 
-    // Elementos DOM
-    const contenedor = document.getElementById("textContainer");
-    const charCountElem = document.getElementById("charCount");
-    const clearBtn = document.getElementById("clearBtn");
-    const increaseFontBtn = document.getElementById("increaseFont");
-    const decreaseFontBtn = document.getElementById("decreaseFont");
+  for (const linea of lineas) {
+    const div = document.createElement("div");
 
-    // Guarda en localStorage
-    function guardarLineas() {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(lineasTokenizadas));
-    }
-    // Carga de localStorage
-    function cargarLineas() {
-      const data = localStorage.getItem(STORAGE_KEY);
-      if (data) {
-        try {
-          const parsed = JSON.parse(data);
-          if (Array.isArray(parsed)) {
-            lineasTokenizadas = parsed;
-            return true;
-          }
-        } catch {}
-      }
-      return false;
-    }
-
-    // Función para llamar a JPDB con texto completo y recibir tokens
-    async function parsearConJPDB(textoCompleto) {
-      try {
-        const url = `https://jpdb.io/api/v1/parse?sentence=${encodeURIComponent(textoCompleto)}`;
-        const res = await fetch(url);
-        if (!res.ok) throw new Error("Error al conectar con JPDB");
-        const data = await res.json();
-
-        if (!data.tokens || !Array.isArray(data.tokens)) {
-          throw new Error("Respuesta JPDB inválida");
-        }
-
-        // El API devuelve tokens planos, pero nosotros queremos líneas para mantener estructura
-        // Por simplicidad, aquí dividimos por saltos de línea originales
-        // Pero el API parsea frase completa, entonces dividimos tokens en líneas por "\n"
-        // Esto es un workaround sencillo para mantener líneas.
-
-        const lineasTexto = textoCompleto.split("\n");
-        let indexToken = 0;
-        const lineasToken = [];
-
-        for (const lineaTexto of lineasTexto) {
-          const lineaLength = lineaTexto.length;
-          const tokensLinea = [];
-          let charCount = 0;
-
-          while (indexToken < data.tokens.length && charCount < lineaLength) {
-            const t = data.tokens[indexToken];
-            tokensLinea.push({
-              surface_form: t.surface_form,
-              reading: t.reading || null,
-              meanings: t.meanings || null,
-            });
-            charCount += t.surface_form.length;
-            indexToken++;
-          }
-          lineasToken.push(tokensLinea);
-        }
-
-        return lineasToken;
-      } catch (e) {
-        alert("Error al parsear con JPDB: " + e.message);
-        return null;
-      }
-    }
-
-    // Renderizar todo el texto tokenizado en el contenedor
-    function renderizarTexto() {
-      contenedor.innerHTML = "";
-
-      if (lineasTokenizadas.length === 0) {
-        contenedor.textContent = "(No hay texto guardado)";
-        charCountElem.textContent = "";
-        return;
-      }
-
-      lineasTokenizadas.forEach((tokensLinea, idxLinea) => {
-        const divLinea = document.createElement("div");
-        divLinea.className = "line";
-
-        const spanPalabras = document.createElement("div");
-        spanPalabras.className = "words";
-
-        tokensLinea.forEach(token => {
-          const a = document.createElement("a");
-          a.href = `https://jpdb.io/search?q=${encodeURIComponent(token.surface_form)}`;
-          a.target = "_blank";
-          a.rel = "noopener noreferrer";
-          a.textContent = token.surface_form;
-          spanPalabras.appendChild(a);
-        });
-
-        const btnEliminar = document.createElement("button");
-        btnEliminar.className = "deleteBtn";
-        btnEliminar.title = "Eliminar esta línea";
-        btnEliminar.textContent = "🗑️";
-        btnEliminar.onclick = () => {
-          lineasTokenizadas.splice(idxLinea, 1);
-          guardarLineas();
-          renderizarTexto();
-        };
-
-        divLinea.appendChild(spanPalabras);
-        divLinea.appendChild(btnEliminar);
-        contenedor.appendChild(divLinea);
+    const data = await parseWithBackend(linea);
+    if (!data || !data.tokens) {
+      div.textContent = linea; // fallback si falla parseo
+    } else {
+      data.tokens.forEach(token => {
+        div.appendChild(crearEnlaceJPDB(token.surface_form));
+        div.appendChild(document.createTextNode(" "));
       });
-
-      // Contar caracteres sin espacios
-      const textoPlano = lineasTokenizadas.flat().map(t => t.surface_form).join("");
-      charCountElem.textContent = `📏 Total: ${textoPlano.length} caracteres (sin espacios)`;
     }
+    contenedor.appendChild(div);
+  }
+}
 
-    // Añadir texto desde URL y parsear si hay texto nuevo
-    async function añadirTextoNuevo(textoNuevo) {
-      if (!textoNuevo) return;
-
-      // Si ya hay texto, concatenamos con salto para mantener líneas
-      const textoCompleto = lineasTokenizadas.length
-        ? lineasTokenizadas.flat().map(t => t.surface_form).join("") + "\n" + textoNuevo
-        : textoNuevo;
-
-      const tokensParseados = await parsearConJPDB(textoCompleto);
-      if (tokensParseados) {
-        lineasTokenizadas = tokensParseados;
-        guardarLineas();
-        renderizarTexto();
-      }
-    }
-
-    // Eventos botones fuente
-    increaseFontBtn.onclick = () => {
-      fontSize += 2;
-      if (fontSize > 48) fontSize = 48;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    decreaseFontBtn.onclick = () => {
-      fontSize -= 2;
-      if (fontSize < 8) fontSize = 8;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    // Evento botón limpiar todo
-    clearBtn.onclick = () => {
-      if (confirm("¿Seguro que quieres borrar todo el texto guardado?")) {
-        lineasTokenizadas = [];
-        localStorage.removeItem(STORAGE_KEY);
-        renderizarTexto();
-      }
-    };
-
-    // Inicio: cargar texto guardado y si hay texto nuevo en URL, añadirlo
-    (async () => {
-      const cargado = cargarLineas();
-
-      if (textoDecodificado) {
-        await añadirTextoNuevo(textoDecodificado);
-      } else if (cargado) {
-        renderizarTexto();
-      } else {
-        contenedor.textContent = "(No hay texto guardado)";
-      }
-    })();
-
-  </script>
+renderTexto();
+</script>
 </body>
 </html>

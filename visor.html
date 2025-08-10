@@ -1,265 +1,269 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 1em;
-      background-color: #121212;
-      color: #f1f1f1;
-      line-height: 1.6;
-      position: relative;
-    }
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Texto acumulado con búsqueda JPDB</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 1em;
+    background-color: #121212;
+    color: #f1f1f1;
+    line-height: 1.6;
+    user-select: text; /* Permitir selección */
+  }
 
-    h2 {
-      font-size: 1.3em;
-      text-align: center;
-      margin-bottom: 1em;
-    }
+  h2 {
+    font-size: 1.3em;
+    text-align: center;
+    margin-bottom: 1em;
+  }
 
-    #textContainer {
-      background-color: #1e1e1e;
-      padding: 1em;
-      border-radius: 8px;
-      font-size: var(--fontSize, 16px);
-      user-select: text;
-    }
+  #textContainer {
+    background-color: #1e1e1e;
+    padding: 1em;
+    border-radius: 8px;
+    font-size: var(--fontSize, 16px);
+  }
 
-    .line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5em;
-    }
+  .line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.5em;
+  }
 
-    .line span {
-      flex-grow: 1;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-      user-select: text;
-    }
+  .line span {
+    flex-grow: 1;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
 
-    .deleteBtn {
-      margin-left: 0.5em;
-      background-color: #ff4444;
-      border: none;
-      border-radius: 4px;
-      color: white;
-      cursor: pointer;
-      padding: 0.2em 0.5em;
-    }
+  .deleteBtn {
+    margin-left: 0.5em;
+    background-color: #ff4444;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    cursor: pointer;
+    padding: 0.2em 0.5em;
+  }
 
-    .deleteBtn:hover {
-      background-color: #cc0000;
-    }
+  .deleteBtn:hover {
+    background-color: #cc0000;
+  }
 
-    #charCount {
-      margin-top: 1em;
-      font-size: 0.9em;
-      text-align: center;
-      color: #cccccc;
-    }
+  #charCount {
+    margin-top: 1em;
+    font-size: 0.9em;
+    text-align: center;
+    color: #cccccc;
+  }
 
-    .controls {
-      text-align: center;
-      margin-top: 1em;
-    }
+  .controls {
+    text-align: center;
+    margin-top: 1em;
+  }
 
-    .controls button {
-      margin: 0 0.3em;
-      padding: 0.5em 0.8em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #333;
-      color: white;
-      cursor: pointer;
-    }
+  .controls button {
+    margin: 0 0.3em;
+    padding: 0.5em 0.8em;
+    font-size: 1em;
+    border: none;
+    border-radius: 6px;
+    background-color: #333;
+    color: white;
+    cursor: pointer;
+  }
 
-    .controls button:hover {
-      background-color: #555;
-    }
+  .controls button:hover {
+    background-color: #555;
+  }
 
-    #clearBtn {
-      display: block;
-      margin: 2em auto 0 auto;
-      padding: 0.6em 1.2em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #ff4444;
-      color: white;
-      cursor: pointer;
-    }
+  #clearBtn {
+    display: block;
+    margin: 2em auto 0 auto;
+    padding: 0.6em 1.2em;
+    font-size: 1em;
+    border: none;
+    border-radius: 6px;
+    background-color: #ff4444;
+    color: white;
+    cursor: pointer;
+  }
 
-    #clearBtn:hover {
-      background-color: #cc0000;
-    }
+  #clearBtn:hover {
+    background-color: #cc0000;
+  }
 
-    /* Botón de búsqueda flotante */
-    #searchBtn {
-      position: absolute;
-      display: none;
-      padding: 0.3em 0.7em;
-      background-color: #0066cc;
-      color: white;
-      border: none;
-      border-radius: 5px;
-      cursor: pointer;
-      z-index: 1000;
-      font-size: 0.9em;
-      user-select: none;
-      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-      transition: background-color 0.2s ease;
-    }
-    #searchBtn:hover {
-      background-color: #004a99;
-    }
-  </style>
+  /* Botón de búsqueda flotante */
+  #searchBtn {
+    position: fixed;
+    background-color: #007aff;
+    color: white;
+    border: none;
+    border-radius: 20px;
+    padding: 8px 15px;
+    font-size: 16px;
+    cursor: pointer;
+    user-select: none; /* evitar selección del botón */
+    box-shadow: 0 2px 8px rgba(0,0,0,0.4);
+    display: none;
+    z-index: 1000;
+  }
+</style>
 </head>
 <body>
-  <h2>Texto acumulado:</h2>
-  <div id="textContainer"></div>
-  <div id="charCount"></div>
 
-  <div class="controls">
-    <button id="increaseFont">➕ Aumentar</button>
-    <button id="decreaseFont">➖ Reducir</button>
-  </div>
+<h2>Texto acumulado:</h2>
+<div id="textContainer"></div>
+<div id="charCount"></div>
 
-  <button id="clearBtn">🗑️ Borrar todo</button>
+<div class="controls">
+  <button id="increaseFont">➕ Aumentar</button>
+  <button id="decreaseFont">➖ Reducir</button>
+</div>
 
-  <!-- Botón flotante para búsqueda -->
-  <button id="searchBtn" aria-label="Buscar selección en JPDB"></button>
+<button id="clearBtn">🗑️ Borrar todo</button>
 
-  <script>
-    const STORAGE_KEY = "textoGuardado";
-    const FONT_KEY = "fontSize";
-    const params = new URLSearchParams(window.location.search);
-    const nuevoTexto = params.get("text") || "";
-    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+<!-- Botón búsqueda -->
+<button id="searchBtn" aria-label="Buscar selección en JPDB">🔍 Buscar en JPDB</button>
 
-    let anterior = localStorage.getItem(STORAGE_KEY) || "";
-    if (decodificado) {
-      anterior += (anterior ? "\n" : "") + decodificado;
-      localStorage.setItem(STORAGE_KEY, anterior);
-    }
+<script>
+  const STORAGE_KEY = "textoGuardado";
+  const FONT_KEY = "fontSize";
+  const params = new URLSearchParams(window.location.search);
+  const nuevoTexto = params.get("text") || "";
+  const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-    const textContainer = document.getElementById("textContainer");
-    const searchBtn = document.getElementById("searchBtn");
+  let anterior = localStorage.getItem(STORAGE_KEY) || "";
+  if (decodificado) {
+    anterior += (anterior ? "\n" : "") + decodificado;
+    localStorage.setItem(STORAGE_KEY, anterior);
+  }
 
-    function renderTexto() {
-      const contenedor = textContainer;
-      contenedor.innerHTML = "";
+  function renderTexto() {
+    const contenedor = document.getElementById("textContainer");
+    contenedor.innerHTML = "";
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-      lineas.forEach((linea, index) => {
-        const div = document.createElement("div");
-        div.className = "line";
+    const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+    lineas.forEach((linea, index) => {
+      const div = document.createElement("div");
+      div.className = "line";
 
-        const span = document.createElement("span");
-        span.textContent = linea;
+      const span = document.createElement("span");
+      span.textContent = linea;
 
-        const btn = document.createElement("button");
-        btn.textContent = "🗑️";
-        btn.className = "deleteBtn";
-        btn.onclick = () => {
-          lineas.splice(index, 1);
-          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto();
-        };
+      const btn = document.createElement("button");
+      btn.textContent = "🗑️";
+      btn.className = "deleteBtn";
+      btn.onclick = () => {
+        lineas.splice(index, 1);
+        localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+        renderTexto();
+      };
 
-        div.appendChild(span);
-        div.appendChild(btn);
-        contenedor.appendChild(div);
-      });
-
-      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-    }
-
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-    };
-
-    // Fuente
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-
-    document.getElementById("increaseFont").onclick = () => {
-      fontSize += 2;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    document.getElementById("decreaseFont").onclick = () => {
-      fontSize = Math.max(8, fontSize - 2);
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    // Función para mostrar el botón de búsqueda cuando hay texto seleccionado dentro del contenedor
-    function showSearchButton() {
-      const selection = window.getSelection();
-      if (!selection.rangeCount) {
-        searchBtn.style.display = "none";
-        return;
-      }
-      const selectedText = selection.toString().trim();
-      if (!selectedText) {
-        searchBtn.style.display = "none";
-        return;
-      }
-
-      // Verificar que la selección esté dentro de textContainer
-      const range = selection.getRangeAt(0);
-      if (!textContainer.contains(range.commonAncestorContainer)) {
-        searchBtn.style.display = "none";
-        return;
-      }
-
-      // Mostrar botón cerca de la selección
-      const rect = range.getBoundingClientRect();
-      // Ajustamos posición para que quede visible y sobre el texto seleccionado
-      searchBtn.style.top = (window.scrollY + rect.top - searchBtn.offsetHeight - 8) + "px";
-      searchBtn.style.left = (window.scrollX + rect.left) + "px";
-      searchBtn.textContent = `Buscar "${selectedText.length > 15 ? selectedText.slice(0,15) + "…" : selectedText}"`;
-      searchBtn.style.display = "inline-block";
-
-      // Guardar texto para usarlo al hacer clic
-      searchBtn.dataset.query = selectedText;
-    }
-
-    // Evento para mostrar o ocultar el botón al cambiar la selección
-    document.addEventListener("selectionchange", () => {
-      setTimeout(showSearchButton, 0);
+      div.appendChild(span);
+      div.appendChild(btn);
+      contenedor.appendChild(div);
     });
 
-    // Ocultar el botón si se hace clic fuera o se pierde selección
-    document.addEventListener("click", (e) => {
-      if (!searchBtn.contains(e.target)) {
-        searchBtn.style.display = "none";
-      }
-    });
+    const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+    document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+  }
 
-    // Al hacer clic en el botón abrir jpdb en nueva pestaña
-    searchBtn.addEventListener("click", () => {
-      const query = searchBtn.dataset.query;
-      if (query) {
-        const url = `https://jpdb.io/search?q=${encodeURIComponent(query)}`;
-        window.open(url, "_blank");
-        // Opcional: ocultar botón y limpiar selección
-        searchBtn.style.display = "none";
-        window.getSelection().removeAllRanges();
-      }
-    });
-
+  document.getElementById("clearBtn").onclick = () => {
+    localStorage.removeItem(STORAGE_KEY);
     renderTexto();
-  </script>
+  };
+
+  // Fuente
+  let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+  document.getElementById("increaseFont").onclick = () => {
+    fontSize += 2;
+    localStorage.setItem(FONT_KEY, fontSize);
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+  };
+
+  document.getElementById("decreaseFont").onclick = () => {
+    fontSize = Math.max(8, fontSize - 2);
+    localStorage.setItem(FONT_KEY, fontSize);
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+  };
+
+  renderTexto();
+
+  // --- SELECCIÓN Y BOTÓN DE BÚSQUEDA ---
+
+  const searchBtn = document.getElementById("searchBtn");
+
+  // Para posicionar el botón cerca de la selección
+  function positionButton() {
+    const selection = window.getSelection();
+    if (!selection.rangeCount) return;
+
+    const range = selection.getRangeAt(0);
+    const rect = range.getBoundingClientRect();
+
+    // Si no hay área visible, ocultar botón
+    if (rect.width === 0 || rect.height === 0) {
+      searchBtn.style.display = "none";
+      return;
+    }
+
+    // Ajustar posición: un poco más abajo para evitar dedo o teclado
+    let top = rect.bottom + window.scrollY + 10; 
+    let left = rect.left + window.scrollX + rect.width / 2;
+
+    // Limitar que no se salga de la pantalla
+    if (left + searchBtn.offsetWidth / 2 > window.innerWidth) {
+      left = window.innerWidth - searchBtn.offsetWidth - 10;
+    } else if (left - searchBtn.offsetWidth / 2 < 0) {
+      left = 10;
+    }
+
+    searchBtn.style.top = `${top}px`;
+    searchBtn.style.left = `${left - searchBtn.offsetWidth / 2}px`;
+    searchBtn.style.display = "block";
+  }
+
+  // Control selección
+  document.addEventListener("selectionchange", () => {
+    const selection = window.getSelection();
+    const texto = selection.toString().trim();
+
+    // Mostrar botón solo si selección > 1 y menos de 30 caracteres (para evitar selección gigante)
+    if (texto.length > 0 && texto.length <= 30) {
+      positionButton();
+    } else {
+      searchBtn.style.display = "none";
+    }
+  });
+
+  // Al pulsar el botón, abrir jpdb y limpiar selección para evitar menú iOS
+  searchBtn.addEventListener("click", () => {
+    const selection = window.getSelection();
+    const texto = selection.toString().trim();
+
+    if (texto.length === 0) {
+      searchBtn.style.display = "none";
+      return;
+    }
+
+    // Abrir jpdb en nueva pestaña, buscar texto seleccionado codificado en URL
+    const url = `https://jpdb.io/search?keyword=${encodeURIComponent(texto)}`;
+    window.open(url, "_blank");
+
+    // Quitar selección para que desaparezca menú iOS nativo
+    selection.removeAllRanges();
+    searchBtn.style.display = "none";
+  });
+
+</script>
+
 </body>
 </html>

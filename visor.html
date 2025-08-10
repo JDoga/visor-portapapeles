@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>JPDB parser con API key y tooltip mejorado</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Visor Portapapeles con Kuromoji</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -24,13 +24,14 @@
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
       user-select: text;
+      white-space: pre-wrap;
+      word-break: break-word;
     }
     .line {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5em;
-      word-break: break-word;
     }
     .line span.text-content {
       flex-grow: 1;
@@ -117,14 +118,6 @@
       font-size: 0.8em;
       color: #aaa;
     }
-    a.jpdb-link {
-      color: white;
-      text-decoration: none;
-      cursor: pointer;
-    }
-    a.jpdb-link:hover {
-      text-decoration: underline;
-    }
   </style>
 </head>
 <body>
@@ -141,11 +134,11 @@
 
   <div id="tooltip" class="tooltip"></div>
 
-  <script>
+  <script type="module">
+    import kuromoji from "https://cdn.jsdelivr.net/npm/kuromoji@0.1.2/dist/kuromoji.esm.min.js";
+
     const STORAGE_KEY = "textoGuardado";
     const FONT_KEY = "fontSize";
-    const JPDB_API_KEY = "e636aa3a3c56d906ecd8aa13f1974fc7";
-
     const params = new URLSearchParams(window.location.search);
     const nuevoTexto = params.get("text") || "";
     const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
@@ -179,35 +172,14 @@
       tooltip.style.top = y + "px";
     }
 
-    // Hacemos llamada a JPDB para parsear frase y obtener tokens con info
-    async function fetchJPDBParse(sentence) {
-      const url = "https://api.jpdb.io/v1/parse";
-      try {
-        const res = await fetch(url, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${JPDB_API_KEY}`
-          },
-          body: JSON.stringify({ sentence }),
-        });
-        if (!res.ok) throw new Error("Error en API JPDB");
-        const data = await res.json();
-        return data.tokens || [];
-      } catch (e) {
-        console.error("JPDB parse error:", e);
-        return [];
-      }
-    }
-
     function showTooltip(info, event) {
       if (!info) {
         tooltip.classList.remove("visible");
         return;
       }
       tooltip.innerHTML = `
-        <span class="word">${info.surface_form} ${info.reading ? `(${info.reading})` : ""}</span>
-        <span class="meanings">${info.meanings?.join(", ") || "Sin significado"}</span>
+        <span class="word">${info.surface_form} (${info.reading || ""})</span>
+        <span class="meanings">${info.pos.join(", ")}</span>
       `;
       positionTooltip(event);
       tooltip.classList.add("visible");
@@ -217,13 +189,17 @@
       tooltip.classList.remove("visible");
     }
 
-    function crearEnlaceJPDB(token) {
+    function crearEnlaceKuromoji(token) {
       const a = document.createElement("a");
       a.href = `https://jpdb.io/search?q=${encodeURIComponent(token.surface_form)}`;
       a.target = "_blank";
       a.rel = "noopener noreferrer";
       a.textContent = token.surface_form;
-      a.className = "jpdb-link";
+      a.style.color = "white";
+      a.style.textDecoration = "none";
+      a.style.cursor = "pointer";
+
+      let fetchTimeout;
 
       a.addEventListener("mouseenter", (e) => {
         showTooltip(token, e);
@@ -232,12 +208,12 @@
       a.addEventListener("mousemove", positionTooltip);
 
       a.addEventListener("mouseleave", () => {
-        tooltipTimeout = setTimeout(() => {
+        fetchTimeout = setTimeout(() => {
           hideTooltip();
         }, 200);
       });
 
-      // Para móviles, toggle tooltip con touch
+      // Para móviles, mostrar tooltip al tocar (y ocultar si se toca fuera)
       a.addEventListener("touchstart", (e) => {
         e.preventDefault();
         if (tooltip.classList.contains("visible")) {
@@ -247,7 +223,6 @@
         }
       });
 
-      // Cerrar tooltip si se toca fuera
       document.addEventListener("touchstart", (e) => {
         if (!tooltip.contains(e.target) && !a.contains(e.target)) {
           hideTooltip();
@@ -257,57 +232,43 @@
       return a;
     }
 
-    async function renderTexto() {
+    function renderTextoSegmentado(text, tokenizer) {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
+      const lineas = (text || "").split("\n").filter(l => l.trim() !== "");
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-
-      for (let i = 0; i < lineas.length; i++) {
-        const linea = lineas[i];
+      lineas.forEach((linea, index) => {
         const div = document.createElement("div");
         div.className = "line";
 
         const span = document.createElement("span");
         span.className = "text-content";
 
-        // Parseamos línea con JPDB
-        const tokens = await fetchJPDBParse(linea);
-        if (tokens.length === 0) {
-          // Si falla o no parsea, mostramos línea normal
-          span.textContent = linea;
-        } else {
-          // Construimos enlaces palabra por palabra
-          tokens.forEach(token => {
-            span.appendChild(crearEnlaceJPDB(token));
-          });
-        }
+        const tokens = tokenizer.tokenize(linea);
+        tokens.forEach(token => {
+          span.appendChild(crearEnlaceKuromoji(token));
+        });
 
         const btn = document.createElement("button");
         btn.textContent = "🗑️";
         btn.className = "deleteBtn";
         btn.onclick = () => {
-          lineas.splice(i, 1);
+          lineas.splice(index, 1);
           localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto();
+          renderTextoSegmentado(localStorage.getItem(STORAGE_KEY), tokenizer);
           hideTooltip();
         };
 
         div.appendChild(span);
         div.appendChild(btn);
         contenedor.appendChild(div);
-      }
+      });
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
       document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
 
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-      hideTooltip();
-    };
-
+    // Fuente
     let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
     document.documentElement.style.setProperty("--fontSize", fontSize + "px");
 
@@ -323,7 +284,23 @@
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
-    renderTexto();
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTextoSegmentado("", tokenizer);
+      hideTooltip();
+    };
+
+    // Inicializar kuromoji
+    let tokenizer;
+    kuromoji.builder({ dicPath: "./dict/" }).build((err, _tokenizer) => {
+      if (err) {
+        console.error("Error construyendo tokenizer:", err);
+        document.getElementById("textContainer").textContent = "Error al cargar el tokenizer.";
+        return;
+      }
+      tokenizer = _tokenizer;
+      renderTextoSegmentado(localStorage.getItem(STORAGE_KEY) || "", tokenizer);
+    });
   </script>
 </body>
 </html>

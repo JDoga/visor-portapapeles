@@ -2,119 +2,264 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Buscador Japonés-Inglés</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texto desde portapapeles</title>
   <style>
     body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
       background-color: #121212;
       color: #f1f1f1;
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      padding: 1em;
-      line-height: 1.5;
+      line-height: 1.6;
+      position: relative;
     }
-    h1 {
+
+    h2 {
+      font-size: 1.3em;
       text-align: center;
       margin-bottom: 1em;
     }
-    textarea, input {
-      width: 100%;
-      font-size: 1.2em;
-      padding: 0.6em;
-      margin-bottom: 1em;
-      border-radius: 6px;
-      border: none;
-      outline: none;
-    }
-    textarea {
-      height: 3em;
-      resize: vertical;
-    }
-    #result {
-      background: #1e1e1e;
-      border-radius: 8px;
+
+    #textContainer {
+      background-color: #1e1e1e;
       padding: 1em;
-      min-height: 100px;
-      white-space: pre-wrap;
-      font-size: 1.1em;
+      border-radius: 8px;
+      font-size: var(--fontSize, 16px);
+      user-select: text;
     }
-    button {
-      background: #333;
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5em;
+    }
+
+    .line span {
+      flex-grow: 1;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+      user-select: text;
+    }
+
+    .deleteBtn {
+      margin-left: 0.5em;
+      background-color: #ff4444;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 0.2em 0.5em;
+    }
+
+    .deleteBtn:hover {
+      background-color: #cc0000;
+    }
+
+    #charCount {
+      margin-top: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      color: #cccccc;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background-color: #555;
+    }
+
+    #clearBtn {
+      display: block;
+      margin: 2em auto 0 auto;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #ff4444;
+      color: white;
+      cursor: pointer;
+    }
+
+    #clearBtn:hover {
+      background-color: #cc0000;
+    }
+
+    /* Botón de búsqueda flotante */
+    #searchBtn {
+      position: absolute;
+      display: none;
+      padding: 0.3em 0.7em;
+      background-color: #0066cc;
       color: white;
       border: none;
-      border-radius: 6px;
-      padding: 0.5em 1em;
+      border-radius: 5px;
       cursor: pointer;
-      font-size: 1.1em;
-      margin-bottom: 1em;
-      display: block;
-      width: 100%;
+      z-index: 1000;
+      font-size: 0.9em;
+      user-select: none;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+      transition: background-color 0.2s ease;
     }
-    button:hover {
-      background: #555;
+    #searchBtn:hover {
+      background-color: #004a99;
     }
   </style>
 </head>
 <body>
-  <h1>Diccionario Japonés - Inglés</h1>
-  <textarea id="inputWord" placeholder="Escribe una palabra en japonés aquí..."></textarea>
-  <button id="searchBtn">Buscar</button>
-  <div id="result">Introduce una palabra y pulsa Buscar.</div>
+  <h2>Texto acumulado:</h2>
+  <div id="textContainer"></div>
+  <div id="charCount"></div>
+
+  <div class="controls">
+    <button id="increaseFont">➕ Aumentar</button>
+    <button id="decreaseFont">➖ Reducir</button>
+  </div>
+
+  <button id="clearBtn">🗑️ Borrar todo</button>
+
+  <!-- Botón flotante para búsqueda -->
+  <button id="searchBtn" aria-label="Buscar selección en JPDB"></button>
 
   <script>
-    const inputWord = document.getElementById('inputWord');
-    const searchBtn = document.getElementById('searchBtn');
-    const resultDiv = document.getElementById('result');
+    const STORAGE_KEY = "textoGuardado";
+    const FONT_KEY = "fontSize";
+    const params = new URLSearchParams(window.location.search);
+    const nuevoTexto = params.get("text") || "";
+    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-    async function buscarPalabra(word) {
-      if (!word.trim()) {
-        resultDiv.textContent = "Por favor, escribe una palabra.";
-        return;
-      }
-      resultDiv.textContent = "Buscando...";
-      try {
-        const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(word)}`;
-        const response = await fetch(url);
-        if (!response.ok) throw new Error("Error en la petición");
-        const data = await response.json();
-
-        if (!data.data || data.data.length === 0) {
-          resultDiv.textContent = "No se encontraron resultados.";
-          return;
-        }
-
-        // Mostramos las primeras 3 entradas
-        let salida = "";
-        for (let i = 0; i < Math.min(3, data.data.length); i++) {
-          const entry = data.data[i];
-          const japanese = entry.japanese[0];
-          const senses = entry.senses;
-
-          salida += `Palabra: ${japanese.word || japanese.reading}\n`;
-          salida += `Lectura: ${japanese.reading}\n`;
-          salida += `Significados:\n`;
-          senses.forEach((sense, idx) => {
-            salida += `  ${idx + 1}. ${sense.english_definitions.join(", ")}\n`;
-          });
-          salida += "\n";
-        }
-        resultDiv.textContent = salida;
-      } catch (error) {
-        resultDiv.textContent = "❌ Error al buscar la palabra.";
-        console.error(error);
-      }
+    let anterior = localStorage.getItem(STORAGE_KEY) || "";
+    if (decodificado) {
+      anterior += (anterior ? "\n" : "") + decodificado;
+      localStorage.setItem(STORAGE_KEY, anterior);
     }
 
-    searchBtn.onclick = () => {
-      buscarPalabra(inputWord.value);
+    const textContainer = document.getElementById("textContainer");
+    const searchBtn = document.getElementById("searchBtn");
+
+    function renderTexto() {
+      const contenedor = textContainer;
+      contenedor.innerHTML = "";
+
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      lineas.forEach((linea, index) => {
+        const div = document.createElement("div");
+        div.className = "line";
+
+        const span = document.createElement("span");
+        span.textContent = linea;
+
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "deleteBtn";
+        btn.onclick = () => {
+          lineas.splice(index, 1);
+          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+          renderTexto();
+        };
+
+        div.appendChild(span);
+        div.appendChild(btn);
+        contenedor.appendChild(div);
+      });
+
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
+
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto();
     };
 
-    // También buscar si presionan Enter en el textarea (sin Shift)
-    inputWord.addEventListener('keydown', e => {
-      if (e.key === "Enter" && !e.shiftKey) {
-        e.preventDefault();
-        buscarPalabra(inputWord.value);
+    // Fuente
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+    document.getElementById("increaseFont").onclick = () => {
+      fontSize += 2;
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    document.getElementById("decreaseFont").onclick = () => {
+      fontSize = Math.max(8, fontSize - 2);
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
+
+    // Función para mostrar el botón de búsqueda cuando hay texto seleccionado dentro del contenedor
+    function showSearchButton() {
+      const selection = window.getSelection();
+      if (!selection.rangeCount) {
+        searchBtn.style.display = "none";
+        return;
+      }
+      const selectedText = selection.toString().trim();
+      if (!selectedText) {
+        searchBtn.style.display = "none";
+        return;
+      }
+
+      // Verificar que la selección esté dentro de textContainer
+      const range = selection.getRangeAt(0);
+      if (!textContainer.contains(range.commonAncestorContainer)) {
+        searchBtn.style.display = "none";
+        return;
+      }
+
+      // Mostrar botón cerca de la selección
+      const rect = range.getBoundingClientRect();
+      // Ajustamos posición para que quede visible y sobre el texto seleccionado
+      searchBtn.style.top = (window.scrollY + rect.top - searchBtn.offsetHeight - 8) + "px";
+      searchBtn.style.left = (window.scrollX + rect.left) + "px";
+      searchBtn.textContent = `Buscar "${selectedText.length > 15 ? selectedText.slice(0,15) + "…" : selectedText}"`;
+      searchBtn.style.display = "inline-block";
+
+      // Guardar texto para usarlo al hacer clic
+      searchBtn.dataset.query = selectedText;
+    }
+
+    // Evento para mostrar o ocultar el botón al cambiar la selección
+    document.addEventListener("selectionchange", () => {
+      setTimeout(showSearchButton, 0);
+    });
+
+    // Ocultar el botón si se hace clic fuera o se pierde selección
+    document.addEventListener("click", (e) => {
+      if (!searchBtn.contains(e.target)) {
+        searchBtn.style.display = "none";
       }
     });
+
+    // Al hacer clic en el botón abrir jpdb en nueva pestaña
+    searchBtn.addEventListener("click", () => {
+      const query = searchBtn.dataset.query;
+      if (query) {
+        const url = `https://jpdb.io/search?q=${encodeURIComponent(query)}`;
+        window.open(url, "_blank");
+        // Opcional: ocultar botón y limpiar selección
+        searchBtn.style.display = "none";
+        window.getSelection().removeAllRanges();
+      }
+    });
+
+    renderTexto();
   </script>
 </body>
 </html>

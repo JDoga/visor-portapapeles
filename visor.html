@@ -24,34 +24,30 @@
       background-color: #1e1e1e;
       padding: 1em;
       border-radius: 8px;
-      font-size: var(--fontSize, 16px);
+      font-size: 1em;
+      color: #f1f1f1;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     .line {
       display: flex;
       justify-content: space-between;
       align-items: center;
-      margin-bottom: 0.5em;
     }
 
     .line span {
       flex-grow: 1;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
     }
 
-    .deleteBtn {
-      margin-left: 0.5em;
-      background-color: #ff4444;
+    .delete-btn {
+      margin-left: 8px;
+      background: #ff4444;
       border: none;
-      border-radius: 4px;
       color: white;
-      cursor: pointer;
       padding: 0.2em 0.5em;
-    }
-
-    .deleteBtn:hover {
-      background-color: #cc0000;
+      border-radius: 4px;
+      cursor: pointer;
     }
 
     #charCount {
@@ -61,40 +57,29 @@
       color: #cccccc;
     }
 
-    .controls {
-      text-align: center;
+    #controls {
       margin-top: 1em;
+      text-align: center;
     }
 
-    .controls button {
-      margin: 0 0.3em;
-      padding: 0.5em 0.8em;
-      font-size: 1em;
+    .font-btn {
+      margin: 0 5px;
+      padding: 0.4em 0.8em;
       border: none;
-      border-radius: 6px;
-      background-color: #333;
+      border-radius: 4px;
+      background-color: #444;
       color: white;
       cursor: pointer;
     }
 
-    .controls button:hover {
-      background-color: #555;
+    .font-btn:hover {
+      background-color: #666;
     }
 
-    #clearBtn {
-      display: block;
-      margin: 2em auto 0 auto;
-      padding: 0.6em 1.2em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #ff4444;
-      color: white;
+    .jp-link {
+      color: #4da6ff;
+      text-decoration: underline;
       cursor: pointer;
-    }
-
-    #clearBtn:hover {
-      background-color: #cc0000;
     }
   </style>
 </head>
@@ -103,77 +88,131 @@
   <div id="textContainer"></div>
   <div id="charCount"></div>
 
-  <div class="controls">
-    <button id="increaseFont">➕ Aumentar</button>
-    <button id="decreaseFont">➖ Reducir</button>
+  <div id="controls">
+    <button class="font-btn" onclick="adjustFont(1)">Aumentar tamaño</button>
+    <button class="font-btn" onclick="adjustFont(-1)">Reducir tamaño</button>
+    <button class="font-btn" onclick="clearAll()">🗑️ Borrar todo</button>
   </div>
-
-  <button id="clearBtn">🗑️ Borrar todo</button>
 
   <script>
     const STORAGE_KEY = "textoGuardado";
-    const FONT_KEY = "fontSize";
     const params = new URLSearchParams(window.location.search);
     const nuevoTexto = params.get("text") || "";
     const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+    const anterior = localStorage.getItem(STORAGE_KEY) || "";
+    const combinado = decodificado
+      ? anterior + (anterior ? "\n" : "") + decodificado
+      : anterior;
 
-    let anterior = localStorage.getItem(STORAGE_KEY) || "";
-    if (decodificado) {
-      anterior += (anterior ? "\n" : "") + decodificado;
-      localStorage.setItem(STORAGE_KEY, anterior);
-    }
+    localStorage.setItem(STORAGE_KEY, combinado);
 
     function renderTexto() {
-      const contenedor = document.getElementById("textContainer");
-      contenedor.innerHTML = "";
+      const textContainer = document.getElementById("textContainer");
+      textContainer.innerHTML = "";
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
       lineas.forEach((linea, index) => {
         const div = document.createElement("div");
         div.className = "line";
-
         const span = document.createElement("span");
         span.textContent = linea;
-
         const btn = document.createElement("button");
-        btn.textContent = "🗑️";
-        btn.className = "deleteBtn";
-        btn.onclick = () => {
-          lineas.splice(index, 1);
-          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto();
-        };
-
+        btn.textContent = "❌";
+        btn.className = "delete-btn";
+        btn.onclick = () => borrarLinea(index);
         div.appendChild(span);
         div.appendChild(btn);
-        contenedor.appendChild(div);
+        textContainer.appendChild(div);
       });
 
-      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+      updateCharCount();
+      enhanceJapaneseLinks();
     }
 
-    document.getElementById("clearBtn").onclick = () => {
+    function borrarLinea(index) {
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
+      lineas.splice(index, 1);
+      localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+      renderTexto();
+    }
+
+    function clearAll() {
       localStorage.removeItem(STORAGE_KEY);
       renderTexto();
-    };
+    }
 
-    // Fuente
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    function updateCharCount() {
+      const texto = localStorage.getItem(STORAGE_KEY) || "";
+      const sinEspacios = texto.replace(/\s/g, "");
+      document.getElementById("charCount").textContent =
+        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+    }
 
-    document.getElementById("increaseFont").onclick = () => {
-      fontSize += 2;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
+    function adjustFont(delta) {
+      const container = document.getElementById("textContainer");
+      const currentSize = parseFloat(window.getComputedStyle(container).fontSize);
+      container.style.fontSize = (currentSize + delta) + "px";
+    }
 
-    document.getElementById("decreaseFont").onclick = () => {
-      fontSize = Math.max(8, fontSize - 2);
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
+    // --- NUEVA FUNCIÓN: Enlazar palabras japonesas a JPDB y mostrar tooltip ---
+    async function enhanceJapaneseLinks() {
+      const container = document.getElementById("textContainer");
+      const jpRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
 
+      container.querySelectorAll(".line span").forEach(span => {
+        const html = span.textContent.replace(jpRegex, word =>
+          `<a href="https://jpdb.io/search?q=${encodeURIComponent(word)}" target="_blank" class="jp-link">${word}</a>`
+        );
+        span.innerHTML = html;
+      });
+
+      container.querySelectorAll(".jp-link").forEach(link => {
+        link.addEventListener("mouseover", async () => {
+          const word = link.textContent;
+          try {
+            const resp = await fetch("https://jpdb.stoplight.io/api/v1/parse", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({ text: word })
+            });
+            const data = await resp.json();
+            const meaning = data?.tokens?.[0]?.meanings_chunks?.[0] || "Sin información";
+            showTooltip(link, meaning);
+          } catch {
+            showTooltip(link, "Error cargando info");
+          }
+        });
+        link.addEventListener("mouseout", () => hideTooltip());
+      });
+    }
+
+    function showTooltip(target, text) {
+      hideTooltip();
+      const tooltip = document.createElement("div");
+      tooltip.id = "jpTooltip";
+      tooltip.textContent = text;
+      Object.assign(tooltip.style, {
+        position: "absolute",
+        background: "#222",
+        color: "#fff",
+        padding: "4px 8px",
+        borderRadius: "4px",
+        fontSize: "14px",
+        pointerEvents: "none",
+        maxWidth: "200px",
+        zIndex: "1000"
+      });
+      document.body.appendChild(tooltip);
+      const rect = target.getBoundingClientRect();
+      tooltip.style.left = rect.left + window.scrollX + "px";
+      tooltip.style.top = rect.bottom + window.scrollY + "px";
+    }
+
+    function hideTooltip() {
+      document.getElementById("jpTooltip")?.remove();
+    }
+
+    // Inicializamos
     renderTexto();
   </script>
 </body>

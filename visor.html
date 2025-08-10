@@ -2,8 +2,8 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Texto acumulado y definiciones en japonés</title>
   <style>
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -25,6 +25,10 @@
       padding: 1em;
       border-radius: 8px;
       font-size: var(--fontSize, 16px);
+      margin-bottom: 1.5em;
+      min-height: 100px;
+      white-space: pre-wrap;
+      word-wrap: break-word;
     }
 
     .line {
@@ -59,11 +63,13 @@
       font-size: 0.9em;
       text-align: center;
       color: #cccccc;
+      margin-bottom: 2em;
     }
 
     .controls {
       text-align: center;
       margin-top: 1em;
+      margin-bottom: 2em;
     }
 
     .controls button {
@@ -96,6 +102,43 @@
     #clearBtn:hover {
       background-color: #cc0000;
     }
+
+    /* NUEVAS CAJAS */
+    #inputContainer {
+      margin-bottom: 1.5em;
+      text-align: center;
+    }
+
+    #wordInput {
+      width: 60%;
+      max-width: 400px;
+      padding: 0.5em 1em;
+      font-size: 1.1em;
+      border-radius: 6px;
+      border: none;
+      outline: none;
+    }
+
+    #definitionBox {
+      background-color: #2a2a2a;
+      border-radius: 8px;
+      padding: 1em;
+      min-height: 80px;
+      max-width: 600px;
+      margin: 0 auto;
+      font-size: 1em;
+      line-height: 1.4;
+      white-space: pre-wrap;
+    }
+
+    #loadingDef {
+      color: #f7b500;
+      margin-top: 0.5em;
+      font-style: italic;
+      font-size: 0.9em;
+      text-align: center;
+    }
+
   </style>
 </head>
 <body>
@@ -110,6 +153,21 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
+  <!-- NUEVO: Caja de entrada para palabra -->
+  <div id="inputContainer">
+    <input
+      type="text"
+      id="wordInput"
+      placeholder="Escribe una palabra en japonés y presiona Enter"
+      aria-label="Entrada de palabra en japonés"
+      autocomplete="off"
+    />
+    <div id="loadingDef" style="display:none;">Buscando definición...</div>
+  </div>
+
+  <!-- NUEVO: Caja para mostrar la definición -->
+  <div id="definitionBox" aria-live="polite" aria-atomic="true"></div>
+
   <script>
     const STORAGE_KEY = "textoGuardado";
     const FONT_KEY = "fontSize";
@@ -123,11 +181,14 @@
       localStorage.setItem(STORAGE_KEY, anterior);
     }
 
+    // Render texto acumulado
     function renderTexto() {
       const contenedor = document.getElementById("textContainer");
       contenedor.innerHTML = "";
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "")
+        .split("\n")
+        .filter((l) => l.trim() !== "");
       lineas.forEach((linea, index) => {
         const div = document.createElement("div");
         div.className = "line";
@@ -150,13 +211,9 @@
       });
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+      document.getElementById("charCount").textContent =
+        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
-
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-    };
 
     // Fuente
     let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
@@ -173,6 +230,82 @@
       localStorage.setItem(FONT_KEY, fontSize);
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
+
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto();
+      document.getElementById("definitionBox").textContent = "";
+    };
+
+    // NUEVA FUNCIONALIDAD: Buscar definición en japonés usando Jisho API no oficial
+    const input = document.getElementById("wordInput");
+    const defBox = document.getElementById("definitionBox");
+    const loading = document.getElementById("loadingDef");
+
+    input.addEventListener("keydown", async (e) => {
+      if (e.key === "Enter") {
+        const word = input.value.trim();
+        if (!word) return;
+
+        defBox.textContent = "";
+        loading.style.display = "block";
+
+        try {
+          // Petición al endpoint de Jisho para la palabra en japonés
+          const response = await fetch(
+            `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(word)}`
+          );
+
+          if (!response.ok) throw new Error("No se encontró la palabra.");
+
+          const data = await response.json();
+
+          if (!data.data || data.data.length === 0) {
+            defBox.textContent = `❌ No se encontró definición para "${word}".`;
+            loading.style.display = "none";
+            return;
+          }
+
+          // Construir la definición con el contenido en japonés
+          let output = `定義（${word}）:\n\n`;
+
+          // Mostramos la primera entrada para simplicidad
+          const firstEntry = data.data[0];
+
+          // Mostrar lecturas (kana)
+          if (firstEntry.japanese && firstEntry.japanese.length > 0) {
+            output += `読み方: ${firstEntry.japanese.map(j => j.reading).filter(Boolean).join(", ")}\n`;
+          }
+
+          // Mostrar palabras (kanji)
+          if (firstEntry.japanese && firstEntry.japanese.length > 0) {
+            output += `単語: ${firstEntry.japanese.map(j => j.word).filter(Boolean).join(", ")}\n\n`;
+          }
+
+          // Mostrar definiciones en japonés (sense)
+          if (firstEntry.senses && firstEntry.senses.length > 0) {
+            firstEntry.senses.forEach((sense, i) => {
+              // Filtramos solo definiciones que contengan japonés (si quieres, mostramos también inglés)
+              const defsJP = sense.parts_of_speech.join(", ") + "\n";
+              output += `意味 (${i + 1}):\n`;
+              // Las definiciones vienen en inglés normalmente, pero también hay etiquetas de "glosses" con japonés
+              // Jisho no ofrece definiciones monolingües directamente, pero podemos mostrar tags y palabras relacionadas
+              // Aquí mostramos las traducciones al inglés para ser práctico:
+              output += sense.english_definitions.join(", ") + "\n";
+
+              // En sentido monolingüe real, necesitarías otra fuente más especializada
+              output += "\n";
+            });
+          }
+
+          defBox.textContent = output;
+        } catch (error) {
+          defBox.textContent = `❌ Error al buscar la definición: ${error.message}`;
+        } finally {
+          loading.style.display = "none";
+        }
+      }
+    });
 
     renderTexto();
   </script>

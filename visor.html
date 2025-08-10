@@ -1,219 +1,229 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Texto desde portapapeles</title>
-  <style>
-    body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 1em;
-      background-color: #121212;
-      color: #f1f1f1;
-      line-height: 1.6;
-    }
-
-    h2 {
-      font-size: 1.3em;
-      text-align: center;
-      margin-bottom: 1em;
-    }
-
-    #textContainer {
-      background-color: #1e1e1e;
-      padding: 1em;
-      border-radius: 8px;
-      font-size: 1em;
-      color: #f1f1f1;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-
-    .line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-    }
-
-    .line span {
-      flex-grow: 1;
-    }
-
-    .delete-btn {
-      margin-left: 8px;
-      background: #ff4444;
-      border: none;
-      color: white;
-      padding: 0.2em 0.5em;
-      border-radius: 4px;
-      cursor: pointer;
-    }
-
-    #charCount {
-      margin-top: 1em;
-      font-size: 0.9em;
-      text-align: center;
-      color: #cccccc;
-    }
-
-    #controls {
-      margin-top: 1em;
-      text-align: center;
-    }
-
-    .font-btn {
-      margin: 0 5px;
-      padding: 0.4em 0.8em;
-      border: none;
-      border-radius: 4px;
-      background-color: #444;
-      color: white;
-      cursor: pointer;
-    }
-
-    .font-btn:hover {
-      background-color: #666;
-    }
-
-    .jp-link {
-      color: #4da6ff;
-      text-decoration: underline;
-      cursor: pointer;
-    }
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Texto desde portapapeles</title>
+<style>
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    margin: 0;
+    padding: 1em;
+    background-color: #121212;
+    color: #f1f1f1;
+    line-height: 1.6;
+  }
+  h2 {
+    font-size: 1.3em;
+    text-align: center;
+    margin-bottom: 1em;
+  }
+  #textContainer {
+    background-color: #1e1e1e;
+    padding: 1em;
+    border-radius: 8px;
+    font-size: 1em;
+    color: #f1f1f1;
+  }
+  .line {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .line span {
+    flex: 1;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+  }
+  .deleteBtn {
+    margin-left: 1em;
+    background: #ff4444;
+    border: none;
+    border-radius: 4px;
+    color: white;
+    padding: 0.2em 0.5em;
+    cursor: pointer;
+  }
+  .deleteBtn:hover {
+    background: #cc0000;
+  }
+  #charCount {
+    margin-top: 1em;
+    font-size: 0.9em;
+    text-align: center;
+    color: #cccccc;
+  }
+  #controls {
+    display: flex;
+    justify-content: center;
+    margin: 1em 0;
+  }
+  .controlBtn {
+    margin: 0 0.5em;
+    padding: 0.4em 0.8em;
+    background: #333;
+    color: #fff;
+    border: none;
+    border-radius: 4px;
+    cursor: pointer;
+  }
+  .controlBtn:hover {
+    background: #555;
+  }
+  a.jp-link {
+    color: #4da3ff;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+</style>
 </head>
 <body>
-  <h2>Texto acumulado:</h2>
-  <div id="textContainer"></div>
-  <div id="charCount"></div>
+<h2>Texto acumulado:</h2>
 
-  <div id="controls">
-    <button class="font-btn" onclick="adjustFont(1)">Aumentar tamaño</button>
-    <button class="font-btn" onclick="adjustFont(-1)">Reducir tamaño</button>
-    <button class="font-btn" onclick="clearAll()">🗑️ Borrar todo</button>
-  </div>
+<div id="controls">
+  <button class="controlBtn" onclick="changeFontSize(1)">A+</button>
+  <button class="controlBtn" onclick="changeFontSize(-1)">A-</button>
+  <button class="controlBtn" id="clearBtn">🗑️ Borrar todo</button>
+</div>
 
-  <script>
-    const STORAGE_KEY = "textoGuardado";
-    const params = new URLSearchParams(window.location.search);
-    const nuevoTexto = params.get("text") || "";
-    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
-    const anterior = localStorage.getItem(STORAGE_KEY) || "";
-    const combinado = decodificado
-      ? anterior + (anterior ? "\n" : "") + decodificado
-      : anterior;
+<div id="textContainer">Cargando...</div>
+<div id="charCount"></div>
 
-    localStorage.setItem(STORAGE_KEY, combinado);
+<script>
+  const STORAGE_KEY = "textoGuardado";
+  let fontSize = 1;
 
-    function renderTexto() {
-      const textContainer = document.getElementById("textContainer");
-      textContainer.innerHTML = "";
+  const params = new URLSearchParams(window.location.search);
+  const nuevoTexto = params.get("text") || "";
+  const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+  const anterior = localStorage.getItem(STORAGE_KEY) || "";
+  const combinado = decodificado
+    ? anterior + (anterior ? "\n" : "") + decodificado
+    : anterior;
 
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
-      lineas.forEach((linea, index) => {
-        const div = document.createElement("div");
-        div.className = "line";
-        const span = document.createElement("span");
-        span.textContent = linea;
-        const btn = document.createElement("button");
-        btn.textContent = "❌";
-        btn.className = "delete-btn";
-        btn.onclick = () => borrarLinea(index);
-        div.appendChild(span);
-        div.appendChild(btn);
-        textContainer.appendChild(div);
-      });
+  localStorage.setItem(STORAGE_KEY, combinado);
 
-      updateCharCount();
-      enhanceJapaneseLinks();
-    }
+  function renderTexto() {
+    const container = document.getElementById("textContainer");
+    container.innerHTML = "";
 
-    function borrarLinea(index) {
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
-      lineas.splice(index, 1);
-      localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-      renderTexto();
-    }
+    const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n");
 
-    function clearAll() {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-    }
+    lineas.forEach((linea, index) => {
+      const div = document.createElement("div");
+      div.className = "line";
 
-    function updateCharCount() {
-      const texto = localStorage.getItem(STORAGE_KEY) || "";
-      const sinEspacios = texto.replace(/\s/g, "");
-      document.getElementById("charCount").textContent =
-        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-    }
+      const span = document.createElement("span");
+      span.textContent = linea;
 
-    function adjustFont(delta) {
-      const container = document.getElementById("textContainer");
-      const currentSize = parseFloat(window.getComputedStyle(container).fontSize);
-      container.style.fontSize = (currentSize + delta) + "px";
-    }
+      const btn = document.createElement("button");
+      btn.textContent = "🗑️";
+      btn.className = "deleteBtn";
+      btn.onclick = () => {
+        lineas.splice(index, 1);
+        localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+        renderTexto();
+      };
 
-    // --- NUEVA FUNCIÓN: Enlazar palabras japonesas a JPDB y mostrar tooltip ---
-    async function enhanceJapaneseLinks() {
-      const container = document.getElementById("textContainer");
-      const jpRegex = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]+/gu;
+      div.appendChild(span);
+      div.appendChild(btn);
+      container.appendChild(div);
+    });
 
-      container.querySelectorAll(".line span").forEach(span => {
-        const html = span.textContent.replace(jpRegex, word =>
-          `<a href="https://jpdb.io/search?q=${encodeURIComponent(word)}" target="_blank" class="jp-link">${word}</a>`
-        );
-        span.innerHTML = html;
-      });
+    updateCharCount();
+    enhanceJapaneseLinks(); // aplicar links JPDB después de renderizar
+  }
 
-      container.querySelectorAll(".jp-link").forEach(link => {
-        link.addEventListener("mouseover", async () => {
-          const word = link.textContent;
-          try {
-            const resp = await fetch("https://jpdb.stoplight.io/api/v1/parse", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ text: word })
-            });
-            const data = await resp.json();
-            const meaning = data?.tokens?.[0]?.meanings_chunks?.[0] || "Sin información";
-            showTooltip(link, meaning);
-          } catch {
-            showTooltip(link, "Error cargando info");
-          }
-        });
-        link.addEventListener("mouseout", () => hideTooltip());
-      });
-    }
+  function updateCharCount() {
+    const texto = localStorage.getItem(STORAGE_KEY) || "";
+    const sinEspacios = texto.replace(/\s+/g, "");
+    document.getElementById("charCount").textContent =
+      "📏 Total: " + sinEspacios.length + " caracteres (sin contar espacios)";
+  }
 
-    function showTooltip(target, text) {
-      hideTooltip();
-      const tooltip = document.createElement("div");
-      tooltip.id = "jpTooltip";
-      tooltip.textContent = text;
-      Object.assign(tooltip.style, {
-        position: "absolute",
-        background: "#222",
-        color: "#fff",
-        padding: "4px 8px",
-        borderRadius: "4px",
-        fontSize: "14px",
-        pointerEvents: "none",
-        maxWidth: "200px",
-        zIndex: "1000"
-      });
-      document.body.appendChild(tooltip);
-      const rect = target.getBoundingClientRect();
-      tooltip.style.left = rect.left + window.scrollX + "px";
-      tooltip.style.top = rect.bottom + window.scrollY + "px";
-    }
+  function changeFontSize(delta) {
+    fontSize += delta * 0.1;
+    document.getElementById("textContainer").style.fontSize = fontSize + "em";
+  }
 
-    function hideTooltip() {
-      document.getElementById("jpTooltip")?.remove();
-    }
-
-    // Inicializamos
+  document.getElementById("clearBtn").addEventListener("click", () => {
+    localStorage.removeItem(STORAGE_KEY);
     renderTexto();
-  </script>
+  });
+
+  // Función para parsear y convertir palabras japonesas en enlaces JPDB
+  async function enhanceJapaneseLinks() {
+    const container = document.getElementById("textContainer");
+    const lines = container.querySelectorAll(".line span");
+
+    for (let span of lines) {
+      const originalText = span.textContent;
+      if (!originalText.trim()) continue;
+
+      try {
+        const resp = await fetch("https://jpdb.stoplight.io/api/v1/parse", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ text: originalText })
+        });
+        const data = await resp.json();
+
+        if (data?.tokens?.length) {
+          span.innerHTML = "";
+          data.tokens.forEach(token => {
+            const surface = token.text;
+            const isJapanese = /[\p{Script=Hiragana}\p{Script=Katakana}\p{Script=Han}]/u.test(surface);
+
+            if (isJapanese) {
+              const link = document.createElement("a");
+              link.href = "https://jpdb.io/search?q=" + encodeURIComponent(surface);
+              link.textContent = surface;
+              link.className = "jp-link";
+              link.target = "_blank";
+              link.addEventListener("mouseover", () => {
+                const meaning = token?.meanings_chunks?.[0] || "Sin información";
+                showTooltip(link, meaning);
+              });
+              link.addEventListener("mouseout", hideTooltip);
+              span.appendChild(link);
+            } else {
+              span.appendChild(document.createTextNode(surface));
+            }
+          });
+        }
+      } catch (err) {
+        console.error("Error al parsear:", err);
+      }
+    }
+  }
+
+  function showTooltip(target, text) {
+    hideTooltip();
+    const tooltip = document.createElement("div");
+    tooltip.id = "jpTooltip";
+    tooltip.textContent = text;
+    Object.assign(tooltip.style, {
+      position: "absolute",
+      background: "#222",
+      color: "#fff",
+      padding: "4px 8px",
+      borderRadius: "4px",
+      fontSize: "14px",
+      pointerEvents: "none",
+      zIndex: 9999
+    });
+    document.body.appendChild(tooltip);
+    const rect = target.getBoundingClientRect();
+    tooltip.style.left = rect.left + "px";
+    tooltip.style.top = rect.bottom + "px";
+  }
+
+  function hideTooltip() {
+    document.getElementById("jpTooltip")?.remove();
+  }
+
+  renderTexto();
+</script>
 </body>
 </html>

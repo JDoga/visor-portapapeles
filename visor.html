@@ -3,311 +3,118 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <title>Texto acumulado y definiciones en japonés</title>
+  <title>Buscador Japonés-Inglés</title>
   <style>
     body {
-      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-      margin: 0;
-      padding: 1em;
       background-color: #121212;
       color: #f1f1f1;
-      line-height: 1.6;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      padding: 1em;
+      line-height: 1.5;
     }
-
-    h2 {
-      font-size: 1.3em;
+    h1 {
       text-align: center;
       margin-bottom: 1em;
     }
-
-    #textContainer {
-      background-color: #1e1e1e;
-      padding: 1em;
-      border-radius: 8px;
-      font-size: var(--fontSize, 16px);
-      margin-bottom: 1.5em;
-      min-height: 100px;
-      white-space: pre-wrap;
-      word-wrap: break-word;
-    }
-
-    .line {
-      display: flex;
-      justify-content: space-between;
-      align-items: center;
-      margin-bottom: 0.5em;
-    }
-
-    .line span {
-      flex-grow: 1;
-      word-wrap: break-word;
-      overflow-wrap: break-word;
-    }
-
-    .deleteBtn {
-      margin-left: 0.5em;
-      background-color: #ff4444;
-      border: none;
-      border-radius: 4px;
-      color: white;
-      cursor: pointer;
-      padding: 0.2em 0.5em;
-    }
-
-    .deleteBtn:hover {
-      background-color: #cc0000;
-    }
-
-    #charCount {
-      margin-top: 1em;
-      font-size: 0.9em;
-      text-align: center;
-      color: #cccccc;
-      margin-bottom: 2em;
-    }
-
-    .controls {
-      text-align: center;
-      margin-top: 1em;
-      margin-bottom: 2em;
-    }
-
-    .controls button {
-      margin: 0 0.3em;
-      padding: 0.5em 0.8em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #333;
-      color: white;
-      cursor: pointer;
-    }
-
-    .controls button:hover {
-      background-color: #555;
-    }
-
-    #clearBtn {
-      display: block;
-      margin: 2em auto 0 auto;
-      padding: 0.6em 1.2em;
-      font-size: 1em;
-      border: none;
-      border-radius: 6px;
-      background-color: #ff4444;
-      color: white;
-      cursor: pointer;
-    }
-
-    #clearBtn:hover {
-      background-color: #cc0000;
-    }
-
-    /* NUEVAS CAJAS */
-    #inputContainer {
-      margin-bottom: 1.5em;
-      text-align: center;
-    }
-
-    #wordInput {
-      width: 60%;
-      max-width: 400px;
-      padding: 0.5em 1em;
-      font-size: 1.1em;
+    textarea, input {
+      width: 100%;
+      font-size: 1.2em;
+      padding: 0.6em;
+      margin-bottom: 1em;
       border-radius: 6px;
       border: none;
       outline: none;
     }
-
-    #definitionBox {
-      background-color: #2a2a2a;
+    textarea {
+      height: 3em;
+      resize: vertical;
+    }
+    #result {
+      background: #1e1e1e;
       border-radius: 8px;
       padding: 1em;
-      min-height: 80px;
-      max-width: 600px;
-      margin: 0 auto;
-      font-size: 1em;
-      line-height: 1.4;
+      min-height: 100px;
       white-space: pre-wrap;
+      font-size: 1.1em;
     }
-
-    #loadingDef {
-      color: #f7b500;
-      margin-top: 0.5em;
-      font-style: italic;
-      font-size: 0.9em;
-      text-align: center;
+    button {
+      background: #333;
+      color: white;
+      border: none;
+      border-radius: 6px;
+      padding: 0.5em 1em;
+      cursor: pointer;
+      font-size: 1.1em;
+      margin-bottom: 1em;
+      display: block;
+      width: 100%;
     }
-
+    button:hover {
+      background: #555;
+    }
   </style>
 </head>
 <body>
-  <h2>Texto acumulado:</h2>
-  <div id="textContainer"></div>
-  <div id="charCount"></div>
-
-  <div class="controls">
-    <button id="increaseFont">➕ Aumentar</button>
-    <button id="decreaseFont">➖ Reducir</button>
-  </div>
-
-  <button id="clearBtn">🗑️ Borrar todo</button>
-
-  <!-- NUEVO: Caja de entrada para palabra -->
-  <div id="inputContainer">
-    <input
-      type="text"
-      id="wordInput"
-      placeholder="Escribe una palabra en japonés y presiona Enter"
-      aria-label="Entrada de palabra en japonés"
-      autocomplete="off"
-    />
-    <div id="loadingDef" style="display:none;">Buscando definición...</div>
-  </div>
-
-  <!-- NUEVO: Caja para mostrar la definición -->
-  <div id="definitionBox" aria-live="polite" aria-atomic="true"></div>
+  <h1>Diccionario Japonés - Inglés</h1>
+  <textarea id="inputWord" placeholder="Escribe una palabra en japonés aquí..."></textarea>
+  <button id="searchBtn">Buscar</button>
+  <div id="result">Introduce una palabra y pulsa Buscar.</div>
 
   <script>
-    const STORAGE_KEY = "textoGuardado";
-    const FONT_KEY = "fontSize";
-    const params = new URLSearchParams(window.location.search);
-    const nuevoTexto = params.get("text") || "";
-    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+    const inputWord = document.getElementById('inputWord');
+    const searchBtn = document.getElementById('searchBtn');
+    const resultDiv = document.getElementById('result');
 
-    let anterior = localStorage.getItem(STORAGE_KEY) || "";
-    if (decodificado) {
-      anterior += (anterior ? "\n" : "") + decodificado;
-      localStorage.setItem(STORAGE_KEY, anterior);
-    }
+    async function buscarPalabra(word) {
+      if (!word.trim()) {
+        resultDiv.textContent = "Por favor, escribe una palabra.";
+        return;
+      }
+      resultDiv.textContent = "Buscando...";
+      try {
+        const url = `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(word)}`;
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Error en la petición");
+        const data = await response.json();
 
-    // Render texto acumulado
-    function renderTexto() {
-      const contenedor = document.getElementById("textContainer");
-      contenedor.innerHTML = "";
-
-      const lineas = (localStorage.getItem(STORAGE_KEY) || "")
-        .split("\n")
-        .filter((l) => l.trim() !== "");
-      lineas.forEach((linea, index) => {
-        const div = document.createElement("div");
-        div.className = "line";
-
-        const span = document.createElement("span");
-        span.textContent = linea;
-
-        const btn = document.createElement("button");
-        btn.textContent = "🗑️";
-        btn.className = "deleteBtn";
-        btn.onclick = () => {
-          lineas.splice(index, 1);
-          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
-          renderTexto();
-        };
-
-        div.appendChild(span);
-        div.appendChild(btn);
-        contenedor.appendChild(div);
-      });
-
-      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent =
-        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
-    }
-
-    // Fuente
-    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-
-    document.getElementById("increaseFont").onclick = () => {
-      fontSize += 2;
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    document.getElementById("decreaseFont").onclick = () => {
-      fontSize = Math.max(8, fontSize - 2);
-      localStorage.setItem(FONT_KEY, fontSize);
-      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
-    };
-
-    document.getElementById("clearBtn").onclick = () => {
-      localStorage.removeItem(STORAGE_KEY);
-      renderTexto();
-      document.getElementById("definitionBox").textContent = "";
-    };
-
-    // NUEVA FUNCIONALIDAD: Buscar definición en japonés usando Jisho API no oficial
-    const input = document.getElementById("wordInput");
-    const defBox = document.getElementById("definitionBox");
-    const loading = document.getElementById("loadingDef");
-
-    input.addEventListener("keydown", async (e) => {
-      if (e.key === "Enter") {
-        const word = input.value.trim();
-        if (!word) return;
-
-        defBox.textContent = "";
-        loading.style.display = "block";
-
-        try {
-          // Petición al endpoint de Jisho para la palabra en japonés
-          const response = await fetch(
-            `https://jisho.org/api/v1/search/words?keyword=${encodeURIComponent(word)}`
-          );
-
-          if (!response.ok) throw new Error("No se encontró la palabra.");
-
-          const data = await response.json();
-
-          if (!data.data || data.data.length === 0) {
-            defBox.textContent = `❌ No se encontró definición para "${word}".`;
-            loading.style.display = "none";
-            return;
-          }
-
-          // Construir la definición con el contenido en japonés
-          let output = `定義（${word}）:\n\n`;
-
-          // Mostramos la primera entrada para simplicidad
-          const firstEntry = data.data[0];
-
-          // Mostrar lecturas (kana)
-          if (firstEntry.japanese && firstEntry.japanese.length > 0) {
-            output += `読み方: ${firstEntry.japanese.map(j => j.reading).filter(Boolean).join(", ")}\n`;
-          }
-
-          // Mostrar palabras (kanji)
-          if (firstEntry.japanese && firstEntry.japanese.length > 0) {
-            output += `単語: ${firstEntry.japanese.map(j => j.word).filter(Boolean).join(", ")}\n\n`;
-          }
-
-          // Mostrar definiciones en japonés (sense)
-          if (firstEntry.senses && firstEntry.senses.length > 0) {
-            firstEntry.senses.forEach((sense, i) => {
-              // Filtramos solo definiciones que contengan japonés (si quieres, mostramos también inglés)
-              const defsJP = sense.parts_of_speech.join(", ") + "\n";
-              output += `意味 (${i + 1}):\n`;
-              // Las definiciones vienen en inglés normalmente, pero también hay etiquetas de "glosses" con japonés
-              // Jisho no ofrece definiciones monolingües directamente, pero podemos mostrar tags y palabras relacionadas
-              // Aquí mostramos las traducciones al inglés para ser práctico:
-              output += sense.english_definitions.join(", ") + "\n";
-
-              // En sentido monolingüe real, necesitarías otra fuente más especializada
-              output += "\n";
-            });
-          }
-
-          defBox.textContent = output;
-        } catch (error) {
-          defBox.textContent = `❌ Error al buscar la definición: ${error.message}`;
-        } finally {
-          loading.style.display = "none";
+        if (!data.data || data.data.length === 0) {
+          resultDiv.textContent = "No se encontraron resultados.";
+          return;
         }
+
+        // Mostramos las primeras 3 entradas
+        let salida = "";
+        for (let i = 0; i < Math.min(3, data.data.length); i++) {
+          const entry = data.data[i];
+          const japanese = entry.japanese[0];
+          const senses = entry.senses;
+
+          salida += `Palabra: ${japanese.word || japanese.reading}\n`;
+          salida += `Lectura: ${japanese.reading}\n`;
+          salida += `Significados:\n`;
+          senses.forEach((sense, idx) => {
+            salida += `  ${idx + 1}. ${sense.english_definitions.join(", ")}\n`;
+          });
+          salida += "\n";
+        }
+        resultDiv.textContent = salida;
+      } catch (error) {
+        resultDiv.textContent = "❌ Error al buscar la palabra.";
+        console.error(error);
+      }
+    }
+
+    searchBtn.onclick = () => {
+      buscarPalabra(inputWord.value);
+    };
+
+    // También buscar si presionan Enter en el textarea (sin Shift)
+    inputWord.addEventListener('keydown', e => {
+      if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        buscarPalabra(inputWord.value);
       }
     });
-
-    renderTexto();
   </script>
 </body>
 </html>

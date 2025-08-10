@@ -1,42 +1,105 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Visor JPDB (TinySegmenter)</title>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Texto desde portapapeles</title>
   <style>
-    :root { --fontSize: 16px; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
       margin: 0;
       padding: 1em;
-      background: #121212;
+      background-color: #121212;
       color: #f1f1f1;
       line-height: 1.6;
     }
-    h2 { text-align:center; font-size:1.2em; margin-bottom:0.8em; }
-    #textContainer {
-      background:#1e1e1e; padding:1em; border-radius:8px;
-      font-size: var(--fontSize);
-      user-select: text;
+
+    h2 {
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 1em;
     }
-    .line { display:flex; align-items:flex-start; justify-content:space-between; gap:0.6em; margin-bottom:0.6em; word-break:break-word; }
-    .text-content { flex:1; }
-    .deleteBtn { background:#ff4444; color:white; border:none; border-radius:6px; padding:0.2em 0.6em; cursor:pointer; }
-    .controls { text-align:center; margin-top:1em; }
-    .controls button { margin: 0 0.3em; padding:0.45em 0.8em; border-radius:6px; border:none; background:#333; color:white; cursor:pointer; }
-    #clearBtn { display:block; margin:1.3em auto 0; padding:0.6em 1.2em; background:#ff4444; color:white; border:none; border-radius:6px; cursor:pointer; }
-    /* Links estilo: blanco y sin subrayado */
-    a.jpdb-link { color: white !important; text-decoration: none !important; cursor: pointer; }
-    a.jpdb-link:hover { text-decoration: underline; }
-    #debug { margin-top:0.6em; font-size:0.85em; color:#aaa; white-space:pre-wrap; }
-    #charCount { margin-top:0.6em; text-align:center; color:#cccccc; font-size:0.9em; }
-    #tinyStatus { color:#f7b500; font-size:0.9em; margin-bottom:0.6em; text-align:center; }
+
+    #textContainer {
+      background-color: #1e1e1e;
+      padding: 1em;
+      border-radius: 8px;
+      font-size: var(--fontSize, 16px);
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5em;
+    }
+
+    .line span {
+      flex-grow: 1;
+      word-wrap: break-word;
+      overflow-wrap: break-word;
+    }
+
+    .deleteBtn {
+      margin-left: 0.5em;
+      background-color: #ff4444;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 0.2em 0.5em;
+    }
+
+    .deleteBtn:hover {
+      background-color: #cc0000;
+    }
+
+    #charCount {
+      margin-top: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      color: #cccccc;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background-color: #555;
+    }
+
+    #clearBtn {
+      display: block;
+      margin: 2em auto 0 auto;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #ff4444;
+      color: white;
+      cursor: pointer;
+    }
+
+    #clearBtn:hover {
+      background-color: #cc0000;
+    }
   </style>
 </head>
 <body>
   <h2>Texto acumulado:</h2>
-  <div id="tinyStatus">Cargando segmentador...</div>
   <div id="textContainer"></div>
   <div id="charCount"></div>
 
@@ -47,176 +110,71 @@
 
   <button id="clearBtn">🗑️ Borrar todo</button>
 
-  <div id="debug" aria-hidden="true"></div>
-
-  <!-- Intentamos cargar TinySegmenter desde jsDelivr (si falla, se usa fallback) -->
-  <script src="https://cdn.jsdelivr.net/npm/tiny-segmenter@0.2.0/lib/tiny-segmenter.js"></script>
-
   <script>
-  // ---------- Config y carga de texto ----------
-  const STORAGE_KEY = 'textoGuardado';
-  const FONT_KEY = 'fontSize';
-  const params = new URLSearchParams(window.location.search);
-  const nuevoTexto = params.get('text') || '';
-  const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, ' '));
-  let anterior = localStorage.getItem(STORAGE_KEY) || '';
-  if (decodificado) {
-    anterior += (anterior ? '\n' : '') + decodificado;
-    localStorage.setItem(STORAGE_KEY, anterior);
-  }
+    const STORAGE_KEY = "textoGuardado";
+    const FONT_KEY = "fontSize";
+    const params = new URLSearchParams(window.location.search);
+    const nuevoTexto = params.get("text") || "";
+    const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-  // Elementos
-  const textContainer = document.getElementById('textContainer');
-  const debugEl = document.getElementById('debug');
-  const tinyStatus = document.getElementById('tinyStatus');
-
-  // Fallback segmenter (si no carga TinySegmenter)
-  function simpleSegmenter(text) {
-    // agrupa por tipo de caract (malo pero es fallback)
-    const out = [];
-    let cur = '', prevType = null;
-    const typeOf = c => {
-      if ((c >= '\u4e00' && c <= '\u9fff') || (c >= '\u3400' && c <= '\u4dbf')) return 'K'; // kanji
-      if (c >= '\u3040' && c <= '\u309f') return 'H'; // hiragana
-      if (c >= '\u30a0' && c <= '\u30ff') return 'T'; // katakana
-      if (/\s/.test(c)) return 'S';
-      return 'O';
-    };
-    for (let i=0;i<text.length;i++){
-      const ch = text[i], t = typeOf(ch);
-      if (prevType === null) { cur = ch; prevType = t; }
-      else if (t === prevType) cur += ch;
-      else { out.push(cur); cur = ch; prevType = t; }
+    let anterior = localStorage.getItem(STORAGE_KEY) || "";
+    if (decodificado) {
+      anterior += (anterior ? "\n" : "") + decodificado;
+      localStorage.setItem(STORAGE_KEY, anterior);
     }
-    if (cur) out.push(cur);
-    return out;
-  }
 
-  // Comprueba disponibilidad de TinySegmenter (se carga desde CDN arriba)
-  let SegmenterAvailable = typeof TinySegmenter !== 'undefined';
+    function renderTexto() {
+      const contenedor = document.getElementById("textContainer");
+      contenedor.innerHTML = "";
 
-  if (SegmenterAvailable) {
-    tinyStatus.textContent = 'TinySegmenter cargado correctamente.';
-    tinyStatus.style.color = '#8be18b';
-  } else {
-    tinyStatus.textContent = 'No se ha podido cargar TinySegmenter desde CDN. Usando segmenter fallback (menos preciso).';
-    tinyStatus.style.color = '#f7b500';
-  }
+      const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+      lineas.forEach((linea, index) => {
+        const div = document.createElement("div");
+        div.className = "line";
 
-  // Helper: detecta si el token contiene japonés (kanji / hiragana / katakana)
-  function hasJapaneseChars(s) {
-    return /[一-龯ぁ-んァ-ン]/.test(s);
-  }
+        const span = document.createElement("span");
+        span.textContent = linea;
 
-  // Crea enlace JPDB (blanco y sin subrayado)
-  function crearEnlaceJPDB(word) {
-    const a = document.createElement('a');
-    a.className = 'jpdb-link';
-    a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
-    a.target = '_blank';
-    a.rel = 'noopener noreferrer';
-    a.textContent = word;
-    return a;
-  }
+        const btn = document.createElement("button");
+        btn.textContent = "🗑️";
+        btn.className = "deleteBtn";
+        btn.onclick = () => {
+          lineas.splice(index, 1);
+          localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+          renderTexto();
+        };
 
-  // Parsea una línea -> tokens usando TinySegmenter o fallback
-  function segmentLine(line) {
-    if (SegmenterAvailable) {
-      try {
-        const seg = new TinySegmenter();
-        const tokens = seg.segment(line);
-        return tokens;
-      } catch (e) {
-        console.warn('TinySegmenter error', e);
-        return simpleSegmenter(line);
-      }
-    } else {
-      return simpleSegmenter(line);
-    }
-  }
-
-  // Renderiza todo
-  async function renderTexto() {
-    textContainer.innerHTML = '';
-    debugEl.textContent = '';
-    const stored = (localStorage.getItem(STORAGE_KEY) || '').split('\n').filter(Boolean);
-    for (let i=0;i<stored.length;i++){
-      const linea = stored[i];
-      const div = document.createElement('div');
-      div.className = 'line';
-
-      const span = document.createElement('div');
-      span.className = 'text-content';
-
-      // tokenizamos con TinySegmenter / fallback
-      const tokens = segmentLine(linea);
-
-      // debug: mostramos tokens (útil para comprobar que realmente se han separado)
-      debugEl.textContent += `Línea ${i+1}: ${linea}\nTokens: ${JSON.stringify(tokens)}\n\n`;
-
-      // agregamos tokens como enlaces si contienen japonés, si no como texto plano
-      tokens.forEach((tkn, idx) => {
-        if (hasJapaneseChars(tkn)) {
-          const link = crearEnlaceJPDB(tkn);
-          span.appendChild(link);
-        } else {
-          span.appendChild(document.createTextNode(tkn));
-        }
-        // espacio visual (solo si no es signo de puntuación japonés)
-        if (!/^[、。？！,.?！]$/.test(tkn)) span.appendChild(document.createTextNode(' '));
+        div.appendChild(span);
+        div.appendChild(btn);
+        contenedor.appendChild(div);
       });
 
-      const btn = document.createElement('button');
-      btn.className = 'deleteBtn';
-      btn.textContent = '🗑️';
-      btn.onclick = () => {
-        stored.splice(i,1);
-        localStorage.setItem(STORAGE_KEY, stored.join('\n'));
-        renderTexto();
-      };
-
-      div.appendChild(span);
-      div.appendChild(btn);
-      textContainer.appendChild(div);
+      const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
 
-    // contador
-    const sinEspacios = stored.join('\n').replace(/\s/g,'');
-    document.getElementById('charCount').textContent = `📏 Total: ${sinEspacios.length} caracteres (sin espacios)`;
-  }
+    document.getElementById("clearBtn").onclick = () => {
+      localStorage.removeItem(STORAGE_KEY);
+      renderTexto();
+    };
 
-  // botones y control de fuente
-  let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
-  document.documentElement.style.setProperty('--fontSize', fontSize + 'px');
+    // Fuente
+    let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
 
-  document.getElementById('increaseFont').onclick = () => {
-    fontSize += 2;
-    localStorage.setItem(FONT_KEY, fontSize);
-    document.documentElement.style.setProperty('--fontSize', fontSize + 'px');
-  };
+    document.getElementById("increaseFont").onclick = () => {
+      fontSize += 2;
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
 
-  document.getElementById('decreaseFont').onclick = () => {
-    fontSize = Math.max(8, fontSize - 2);
-    localStorage.setItem(FONT_KEY, fontSize);
-    document.documentElement.style.setProperty('--fontSize', fontSize + 'px');
-  };
+    document.getElementById("decreaseFont").onclick = () => {
+      fontSize = Math.max(8, fontSize - 2);
+      localStorage.setItem(FONT_KEY, fontSize);
+      document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+    };
 
-  document.getElementById('clearBtn').onclick = () => {
-    localStorage.removeItem(STORAGE_KEY);
     renderTexto();
-  };
-
-  // al cargar: espera un tick (por si TinySegmenter se carga tras el script)
-  window.addEventListener('load', () => {
-    // re-evalúa disponibilidad (por si el CDN tardó)
-    if (!SegmenterAvailable && typeof TinySegmenter !== 'undefined') {
-      SegmenterAvailable = true;
-      tinyStatus.textContent = 'TinySegmenter cargado correctamente.';
-      tinyStatus.style.color = '#8be18b';
-    }
-    // renderizamos
-    renderTexto();
-  });
   </script>
 </body>
 </html>

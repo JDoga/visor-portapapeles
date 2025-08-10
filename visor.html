@@ -1,77 +1,223 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Visor JPDB + Backend</title>
-<style>
-  body { font-family: sans-serif; background:#121212; color:#eee; padding:1em; }
-  a { color:#7ecbff; text-decoration: underline; cursor: pointer; }
-</style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Texto desde portapapeles + JPDB links</title>
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+      margin: 0;
+      padding: 1em;
+      background-color: #121212;
+      color: #f1f1f1;
+      line-height: 1.6;
+    }
+
+    h2 {
+      font-size: 1.3em;
+      text-align: center;
+      margin-bottom: 1em;
+    }
+
+    #textContainer {
+      background-color: #1e1e1e;
+      padding: 1em;
+      border-radius: 8px;
+      font-size: var(--fontSize, 16px);
+      user-select: text;
+    }
+
+    .line {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 0.5em;
+      word-break: break-word;
+    }
+
+    .line span.text-content {
+      flex-grow: 1;
+      cursor: default;
+    }
+
+    .deleteBtn {
+      margin-left: 0.5em;
+      background-color: #ff4444;
+      border: none;
+      border-radius: 4px;
+      color: white;
+      cursor: pointer;
+      padding: 0.2em 0.5em;
+      flex-shrink: 0;
+    }
+
+    .deleteBtn:hover {
+      background-color: #cc0000;
+    }
+
+    #charCount {
+      margin-top: 1em;
+      font-size: 0.9em;
+      text-align: center;
+      color: #cccccc;
+    }
+
+    .controls {
+      text-align: center;
+      margin-top: 1em;
+    }
+
+    .controls button {
+      margin: 0 0.3em;
+      padding: 0.5em 0.8em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #333;
+      color: white;
+      cursor: pointer;
+    }
+
+    .controls button:hover {
+      background-color: #555;
+    }
+
+    #clearBtn {
+      display: block;
+      margin: 2em auto 0 auto;
+      padding: 0.6em 1.2em;
+      font-size: 1em;
+      border: none;
+      border-radius: 6px;
+      background-color: #ff4444;
+      color: white;
+      cursor: pointer;
+    }
+
+    #clearBtn:hover {
+      background-color: #cc0000;
+    }
+
+    a.jpdb-link {
+      color: #7ecbff;
+      text-decoration: underline;
+      cursor: pointer;
+      margin-right: 0.1em;
+    }
+  </style>
 </head>
 <body>
-  <h1>Texto parseado con backend JPDB</h1>
+  <h2>Texto acumulado:</h2>
   <div id="textContainer"></div>
+  <div id="charCount"></div>
+
+  <div class="controls">
+    <button id="increaseFont">➕ Aumentar</button>
+    <button id="decreaseFont">➖ Reducir</button>
+  </div>
+
+  <button id="clearBtn">🗑️ Borrar todo</button>
 
 <script>
-const STORAGE_KEY = "textoGuardado";
-const API_URL = 'https://jpdb-backend-production.up.railway.app/parse'; // URL backend pública
-const params = new URLSearchParams(window.location.search);
-const nuevoTexto = params.get("text") || "";
-const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
+  const STORAGE_KEY = "textoGuardado";
+  const FONT_KEY = "fontSize";
+  const BACKEND_URL = 'https://jpdb-backend-production.up.railway.app/parse'; // Pon aquí tu backend
+  const params = new URLSearchParams(window.location.search);
+  const nuevoTexto = params.get("text") || "";
+  const decodificado = decodeURIComponent(nuevoTexto.replace(/\+/g, " "));
 
-let anterior = localStorage.getItem(STORAGE_KEY) || "";
-if (decodificado) {
-  anterior += (anterior ? "\n" : "") + decodificado;
-  localStorage.setItem(STORAGE_KEY, anterior);
-}
-
-async function parseWithBackend(sentence) {
-  try {
-    const res = await fetch(API_URL, {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ sentence })
-    });
-    if (!res.ok) throw new Error('API error');
-    return await res.json();
-  } catch {
-    return null;
+  let textoGuardado = localStorage.getItem(STORAGE_KEY) || "";
+  if (decodificado) {
+    textoGuardado += (textoGuardado ? "\n" : "") + decodificado;
+    localStorage.setItem(STORAGE_KEY, textoGuardado);
   }
-}
 
-function crearEnlaceJPDB(word) {
-  const a = document.createElement("a");
-  a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
-  a.target = "_blank";
-  a.rel = "noopener noreferrer";
-  a.textContent = word;
-  return a;
-}
-
-async function renderTexto() {
-  const contenedor = document.getElementById("textContainer");
-  contenedor.innerHTML = "";
-
-  const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
-
-  for (const linea of lineas) {
-    const div = document.createElement("div");
-
-    const data = await parseWithBackend(linea);
-    if (!data || !data.tokens) {
-      div.textContent = linea; // fallback si falla parseo
-    } else {
-      data.tokens.forEach(token => {
-        div.appendChild(crearEnlaceJPDB(token.surface_form));
-        div.appendChild(document.createTextNode(" "));
+  async function parseLinea(linea) {
+    try {
+      const res = await fetch(BACKEND_URL, {
+        method: "POST",
+        headers: {"Content-Type": "application/json"},
+        body: JSON.stringify({ sentence: linea })
       });
+      if (!res.ok) throw new Error("Error backend");
+      const data = await res.json();
+      return data.tokens || [];
+    } catch (e) {
+      // Si falla, devolvemos la línea como un solo token para mostrar texto sin enlace
+      return [{ surface_form: linea }];
     }
-    contenedor.appendChild(div);
   }
-}
 
-renderTexto();
+  function crearLink(word) {
+    const a = document.createElement("a");
+    a.href = `https://jpdb.io/search?q=${encodeURIComponent(word)}`;
+    a.target = "_blank";
+    a.rel = "noopener noreferrer";
+    a.textContent = word;
+    a.className = "jpdb-link";
+    return a;
+  }
+
+  async function renderTexto() {
+    const contenedor = document.getElementById("textContainer");
+    contenedor.innerHTML = "";
+
+    const lineas = (localStorage.getItem(STORAGE_KEY) || "").split("\n").filter(l => l.trim() !== "");
+    for (let i = 0; i < lineas.length; i++) {
+      const linea = lineas[i];
+      const div = document.createElement("div");
+      div.className = "line";
+
+      const span = document.createElement("span");
+      span.className = "text-content";
+
+      const tokens = await parseLinea(linea);
+      tokens.forEach(token => {
+        span.appendChild(crearLink(token.surface_form));
+        span.appendChild(document.createTextNode(" "));
+      });
+
+      const btn = document.createElement("button");
+      btn.textContent = "🗑️";
+      btn.className = "deleteBtn";
+      btn.onclick = () => {
+        lineas.splice(i, 1);
+        localStorage.setItem(STORAGE_KEY, lineas.join("\n"));
+        renderTexto();
+      };
+
+      div.appendChild(span);
+      div.appendChild(btn);
+      contenedor.appendChild(div);
+    }
+
+    const sinEspacios = lineas.join("\n").replace(/\s/g, "");
+    document.getElementById("charCount").textContent = `📏 Total: ${sinEspacios.length} caracteres (sin espacios)`;
+  }
+
+  // Botones fuente
+  let fontSize = parseInt(localStorage.getItem(FONT_KEY)) || 16;
+  document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+
+  document.getElementById("increaseFont").onclick = () => {
+    fontSize += 2;
+    localStorage.setItem(FONT_KEY, fontSize);
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+  };
+
+  document.getElementById("decreaseFont").onclick = () => {
+    fontSize = Math.max(8, fontSize - 2);
+    localStorage.setItem(FONT_KEY, fontSize);
+    document.documentElement.style.setProperty("--fontSize", fontSize + "px");
+  };
+
+  document.getElementById("clearBtn").onclick = () => {
+    localStorage.removeItem(STORAGE_KEY);
+    renderTexto();
+  };
+
+  renderTexto();
 </script>
 </body>
 </html>

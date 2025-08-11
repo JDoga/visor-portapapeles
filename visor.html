@@ -14,13 +14,11 @@
       line-height: 1.6;
       position: relative;
     }
-
     h2 {
       font-size: 1.3em;
       text-align: center;
       margin-bottom: 1em;
     }
-
     #textContainer {
       background-color: #1e1e1e;
       padding: 1em;
@@ -28,21 +26,18 @@
       font-size: var(--fontSize, 16px);
       user-select: text;
     }
-
     .line {
       display: flex;
       justify-content: space-between;
       align-items: center;
       margin-bottom: 0.5em;
     }
-
     .line span {
       flex-grow: 1;
       word-wrap: break-word;
       overflow-wrap: break-word;
       user-select: text;
     }
-
     .deleteBtn {
       margin-left: 0.5em;
       background-color: #ff4444;
@@ -52,23 +47,19 @@
       cursor: pointer;
       padding: 0.2em 0.5em;
     }
-
     .deleteBtn:hover {
       background-color: #cc0000;
     }
-
     #charCount {
       margin-top: 1em;
       font-size: 0.9em;
       text-align: center;
       color: #cccccc;
     }
-
     .controls {
       text-align: center;
       margin-top: 1em;
     }
-
     .controls button {
       margin: 0 0.3em;
       padding: 0.5em 0.8em;
@@ -79,11 +70,9 @@
       color: white;
       cursor: pointer;
     }
-
     .controls button:hover {
       background-color: #555;
     }
-
     #clearBtn {
       display: block;
       margin: 2em auto 0 auto;
@@ -95,11 +84,9 @@
       color: white;
       cursor: pointer;
     }
-
     #clearBtn:hover {
       background-color: #cc0000;
     }
-
     /* Botón de búsqueda flotante */
     #searchBtn {
       position: absolute;
@@ -179,7 +166,8 @@
       });
 
       const sinEspacios = lineas.join("\n").replace(/\s/g, "");
-      document.getElementById("charCount").textContent = "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
+      document.getElementById("charCount").textContent =
+        "📏 Total: " + sinEspacios.length + " caracteres (sin espacios)";
     }
 
     document.getElementById("clearBtn").onclick = () => {
@@ -203,7 +191,7 @@
       document.documentElement.style.setProperty("--fontSize", fontSize + "px");
     };
 
-    // Función para mostrar el botón de búsqueda cuando hay texto seleccionado dentro del contenedor
+    // Mostrar botón cuando hay selección
     function showSearchButton() {
       const selection = window.getSelection();
       if (!selection.rangeCount) {
@@ -216,20 +204,28 @@
         return;
       }
 
-      // Verificar que la selección esté dentro de textContainer
       const range = selection.getRangeAt(0);
       if (!textContainer.contains(range.commonAncestorContainer)) {
         searchBtn.style.display = "none";
         return;
       }
 
-      // Mostrar botón cerca de la selección
       const rect = range.getBoundingClientRect();
-      searchBtn.style.top = (window.scrollY + rect.top - searchBtn.offsetHeight - 8) + "px";
-      searchBtn.style.left = (window.scrollX + rect.left) + "px";
-      searchBtn.textContent = `Buscar "${selectedText.length > 15 ? selectedText.slice(0,15) + "…" : selectedText}"`;
-      searchBtn.style.display = "inline-block";
 
+      // Posicionar debajo del texto seleccionado
+      let topPos = window.scrollY + rect.bottom + 10;
+      let leftPos = window.scrollX + rect.left;
+
+      // Si se sale por abajo, ponerlo arriba
+      if (topPos + searchBtn.offsetHeight > window.scrollY + window.innerHeight) {
+        topPos = window.scrollY + rect.top - searchBtn.offsetHeight - 10;
+      }
+
+      searchBtn.style.top = topPos + "px";
+      searchBtn.style.left = leftPos + "px";
+      searchBtn.textContent =
+        `Buscar "${selectedText.length > 15 ? selectedText.slice(0,15) + "…" : selectedText}"`;
+      searchBtn.style.display = "inline-block";
       searchBtn.dataset.query = selectedText;
     }
 
@@ -254,11 +250,6 @@
     });
 
     renderTexto();
-
-    // Hacer scroll automático al final de la página al cargar
-    setTimeout(() => {
-      window.scrollTo(0, document.body.scrollHeight);
-    }, 0);
   </script>
 </body>
 </html>
